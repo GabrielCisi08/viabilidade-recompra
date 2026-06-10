@@ -94,6 +94,17 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .stat .s-val{font-size:22px;font-weight:700;margin-top:2px}
 .divider{height:1px;background:var(--border);margin:16px 0}
 input[type=file]{display:none}
+.custom-select-wrap{position:relative;width:100%}
+.cs-input{width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);cursor:pointer;transition:border-color .15s}
+.cs-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,.08)}
+.cs-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:9999;max-height:280px;overflow:hidden}
+.cs-search{width:100%;font-size:13px;padding:8px 10px;border:none;border-bottom:1px solid var(--border);background:var(--bg);color:var(--text);outline:none}
+.cs-list{max-height:232px;overflow-y:auto}
+.cs-item{padding:8px 12px;font-size:12px;cursor:pointer;color:var(--text);line-height:1.4;border-bottom:0.5px solid var(--border)}
+.cs-item:hover,.cs-item.selected{background:var(--blue-light);color:var(--blue-text)}
+.cs-item:last-child{border-bottom:none}
+.cs-empty{padding:12px;font-size:12px;color:var(--text-muted);text-align:center}
+
 @media(max-width:640px){
   .layout{grid-template-columns:1fr}
   .sidebar{display:none}
@@ -102,18 +113,6 @@ input[type=file]{display:none}
 }
 </style>
 
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-<style>
-.ts-wrapper.single .ts-control{border:1px solid var(--border)!important;border-radius:var(--radius)!important;background:var(--surface)!important;color:var(--text)!important;font-size:13px!important;padding:7px 10px!important;min-height:36px!important;cursor:pointer!important;box-shadow:none!important}
-.ts-wrapper.single.focus .ts-control{border-color:var(--blue)!important;box-shadow:0 0 0 3px rgba(24,95,165,.1)!important}
-.ts-dropdown{border:1px solid var(--border)!important;border-radius:var(--radius)!important;background:var(--surface)!important;box-shadow:0 4px 16px rgba(0,0,0,.1)!important;font-size:13px!important;z-index:9999!important}
-.ts-dropdown .option{padding:8px 12px;color:var(--text);cursor:pointer;line-height:1.4}
-.ts-dropdown .option:hover,.ts-dropdown .option.active{background:var(--blue-light)!important;color:var(--blue-text)!important}
-.ts-dropdown-content{max-height:280px;overflow-y:auto}
-.ts-wrapper .ts-control input{color:var(--text)!important;font-size:13px!important;background:transparent!important}
-.ts-wrapper .clear-button{color:var(--text-muted)}
-</style>
 </head>
 <body>
 
@@ -169,9 +168,12 @@ input[type=file]{display:none}
         <div class="form-grid full">
           <div class="field">
             <label>Unidade (chave produto)</label>
-            <select id="unidadeSelect" placeholder="Buscar por unidade, empreendimento ou cliente…" autocomplete="off">
-              <option value="">— Carregue um CSV para listar as unidades —</option>
-            </select>
+            <div class="custom-select-wrap" id="csWrap">
+              <input type="text" id="csInput" class="cs-input" placeholder="— Carregue um CSV para buscar unidade —" autocomplete="off" readonly onclick="toggleCS()" oninput="filterCS(this.value)">
+              <div class="cs-dropdown" id="csDropdown" style="display:none">
+                <div class="cs-list" id="csList"></div>
+              </div>
+            </div>
           </div>
         </div>
         <div id="matchHint"></div>
@@ -513,33 +515,20 @@ function loadCSV(input){
     fill('filtroFase','FASE');
     fill('filtroStatus','STATUS');
 
-    // populate unidade select with Tom Select
+    // populate custom searchable select
+    window._csItems = [];
     const sortedUnits = [...csvData].sort((a,b)=>{
       const ea=a['EMPREENDIMENTO']||'', eb=b['EMPREENDIMENTO']||'';
       if(ea!==eb) return ea.localeCompare(eb,'pt-BR');
       return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'','pt-BR');
     });
-    if(tomSel){
-      tomSel.clearOptions();
-      sortedUnits.forEach((r,i)=>{
-        const lbl=[r['EMPREENDIMENTO'],r['CHAVE PRODUTO'],r['COMPRADOR 1']].filter(Boolean).join(' · ');
-        tomSel.addOption({value:String(i),text:lbl});
-      });
-      tomSel.refreshOptions(false);
-      tomSel.clear(true);
-    } else {
-      const uSel=g('unidadeSelect');
-      if(uSel){
-        uSel.innerHTML='<option value="">— Selecione uma unidade —</option>';
-        sortedUnits.forEach((r,i)=>{
-          const o=document.createElement('option');
-          o.value=i;
-          o.text=[r['EMPREENDIMENTO'],r['CHAVE PRODUTO'],r['COMPRADOR 1']].filter(Boolean).join(' · ');
-          uSel.appendChild(o);
-        });
-        if(typeof TomSelect!=='undefined') initTS();
-      }
-    }
+    sortedUnits.forEach((r,i)=>{
+      const lbl=[r['EMPREENDIMENTO'],r['CHAVE PRODUTO'],r['COMPRADOR 1']].filter(Boolean).join(' · ');
+      window._csItems.push({idx:i, label:lbl});
+    });
+    renderCSList('');
+    g('csInput').readOnly=false;
+    g('csInput').placeholder='Buscar por unidade, empreendimento ou cliente…';
   };
   reader.readAsText(file, 'UTF-8');
 }
@@ -551,6 +540,13 @@ function selecionarUnidade(idx){
     if(ea!==eb)return ea.localeCompare(eb,'pt-BR');
     return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'','pt-BR');
   });
+  const row=sorted[parseInt(idx)];
+  if(!row) return;
+  const lbl=[row['EMPREENDIMENTO'],row['CHAVE PRODUTO'],row['COMPRADOR 1']].filter(Boolean).join(' · ');
+  g('csInput').value=lbl;
+  closeCS();
+  preencherDados(row);
+});
   const row=sorted[parseInt(idx)];
   if(row) preencherDados(row);
 });
@@ -854,21 +850,44 @@ function initTS(){
 if(typeof TomSelect !== 'undefined'){initTS();}
 else{document.addEventListener('DOMContentLoaded',()=>{if(typeof TomSelect!=='undefined')initTS();});}
 
-// ── Tom Select init ──────────────────────────────────────────────────────────
-let tomSel = null;
-function initTS(){
-  if(tomSel){tomSel.destroy();tomSel=null;}
-  const el = g('unidadeSelect');
-  if(!el || typeof TomSelect==='undefined') return;
-  tomSel = new TomSelect(el,{
-    placeholder:'Buscar por unidade, empreendimento ou cliente…',
-    maxOptions:1000,
-    searchField:['text'],
-    onChange:function(v){ selecionarUnidade(v); }
-  });
+// ── Custom searchable select ─────────────────────────────────────────────────
+window._csItems = [];
+function renderCSList(query){
+  const list = g('csList');
+  if(!list) return;
+  const q = query.toLowerCase().trim();
+  const filtered = q ? window._csItems.filter(i=>i.label.toLowerCase().includes(q)) : window._csItems;
+  if(!filtered.length){
+    list.innerHTML='<div class="cs-empty">Nenhuma unidade encontrada</div>';
+    return;
+  }
+  list.innerHTML = filtered.slice(0,200).map(i=>
+    `<div class="cs-item" onclick="selecionarUnidade('${i.idx}')">${i.label}</div>`
+  ).join('');
 }
-document.addEventListener('DOMContentLoaded', function(){
-  if(typeof TomSelect !== 'undefined') initTS();
+function toggleCS(){
+  const dd=g('csDropdown');
+  if(!dd) return;
+  if(dd.style.display==='none'){
+    dd.style.display='block';
+    renderCSList('');
+    g('csInput').select();
+  } else {
+    closeCS();
+  }
+}
+function filterCS(val){
+  const dd=g('csDropdown');
+  if(dd) dd.style.display='block';
+  renderCSList(val);
+}
+function closeCS(){
+  const dd=g('csDropdown');
+  if(dd) dd.style.display='none';
+}
+document.addEventListener('click',function(e){
+  const wrap=g('csWrap');
+  if(wrap && !wrap.contains(e.target)) closeCS();
 });
 </script>
 </body>
