@@ -501,15 +501,34 @@ function loadCSV(input){
   const reader = new FileReader();
   reader.onload = e=>{
     const text = e.target.result;
-    const sep = text.indexOf('\t') > -1 ? '\t' : ',';
-    const lines = text.split('\n').filter(l=>l.trim());
-    const headers = lines[0].split(sep).map(h=>h.trim().replace(/^"|"$/g,''));
+    // Detect separator: tab > semicolon > comma
+    const firstLine = text.split(/\r?\n/)[0]||'';
+    const sep = firstLine.indexOf('\t')>-1 ? '\t' : firstLine.indexOf(';')>-1 ? ';' : ',';
+    const lines = text.split(/\r?\n/).filter(l=>l.trim());
+    const headers = lines[0].split(sep).map(h=>h.trim().replace(/^["\']+|["\']+$/g,''));
+
+    // Robust CSV row parser that handles quoted fields with commas
+    function parseRow(line, sep){
+      if(sep!==',') return line.split(sep).map(c=>c.trim().replace(/^["\']+|["\']+$/g,''));
+      const result=[]; let cur=''; let inQ=false;
+      for(let i=0;i<line.length;i++){
+        const c=line[i];
+        if(c==='"'&&!inQ){inQ=true;}
+        else if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
+        else if(c==='"'&&inQ){inQ=false;}
+        else if(c===','&&!inQ){result.push(cur.trim());cur='';}
+        else{cur+=c;}
+      }
+      result.push(cur.trim());
+      return result;
+    }
+
     csvData = lines.slice(1).map(line=>{
-      const cols = line.split(sep);
+      const cols = parseRow(line, sep);
       const obj={};
-      headers.forEach((h,i)=>obj[h]=(cols[i]||'').trim().replace(/^"|"$/g,''));
+      headers.forEach((h,i)=>obj[h]=(cols[i]||'').trim().replace(/^["\']+|["\']+$/g,''));
       return obj;
-    }).filter(r=>r['COMPRADOR 1']||r['CHAVE PRODUTO']);
+    }).filter(r=>r['COMPRADOR 1']||r['CHAVE PRODUTO']||r['EMPREENDIMENTO']);
 
     g('fileStatus').innerHTML = `<div class="file-pill">✓ ${file.name} · ${csvData.length} registros</div>`;
 
