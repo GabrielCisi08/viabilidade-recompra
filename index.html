@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Viabilidade de Recompra · Metrocasa</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f7f5;
+  --surface:#ffffff;
+  --border:#e2e0d8;
+  --border-strong:#c8c6bc;
+  --text:#1a1a18;
+  --text-muted:#6b6b66;
+  --text-faint:#9b9b96;
+  --blue:#185FA5;
+  --blue-light:#e6f1fb;
+  --blue-text:#0c447c;
+  --green:#3b6d11;
+  --green-light:#eaf3de;
+  --red:#a32d2d;
+  --red-light:#fcebeb;
+  --amber:#ba7517;
+  --amber-light:#faeeda;
+  --radius:8px;
+  --radius-lg:12px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+.layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:0;display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid var(--border)}
+.sidebar-logo h1{font-size:15px;font-weight:600;color:var(--text)}
+.sidebar-logo p{font-size:11px;color:var(--text-muted);margin-top:2px}
+.nav{padding:12px 8px;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text-muted);transition:all .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:var(--bg);color:var(--text)}
+.nav-item.active{background:var(--blue-light);color:var(--blue-text);font-weight:500}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.sidebar-footer{padding:16px;border-top:1px solid var(--border);font-size:11px;color:var(--text-faint)}
+.main{padding:32px;max-width:800px}
+.page{display:none}
+.page.active{display:block}
+.page-header{margin-bottom:24px}
+.page-header h2{font-size:20px;font-weight:600}
+.page-header p{font-size:13px;color:var(--text-muted);margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px}
+.card-title{font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-grid.three{grid-template-columns:1fr 1fr 1fr}
+.form-grid.full{grid-template-columns:1fr}
+.field label{font-size:12px;color:var(--text-muted);display:block;margin-bottom:5px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);transition:border-color .15s;font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,.08)}
+.field textarea{resize:vertical;min-height:64px;line-height:1.5}
+.upload-zone{border:1.5px dashed var(--border-strong);border-radius:var(--radius-lg);padding:28px 20px;text-align:center;cursor:pointer;background:var(--bg);transition:all .2s}
+.upload-zone:hover{border-color:var(--blue);background:var(--blue-light)}
+.upload-zone .icon{font-size:32px;margin-bottom:8px}
+.upload-zone strong{font-size:13px;color:var(--text);display:block}
+.upload-zone span{font-size:12px;color:var(--text-muted)}
+.file-pill{display:inline-flex;align-items:center;gap:6px;background:var(--green-light);color:var(--green);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500;margin-top:10px}
+.table-wrap{overflow-x:auto}
+table.calc{width:100%;border-collapse:collapse;font-size:13px}
+table.calc th{text-align:left;font-size:11px;font-weight:600;color:var(--text-faint);padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.calc td{padding:7px 10px;border-bottom:1px solid var(--border)}
+table.calc td.num{text-align:right}
+table.calc td input{border:none;background:transparent;width:100%;font-size:13px;color:var(--text);text-align:right;font-family:inherit}
+table.calc td input:focus{outline:none;background:#f0f7ff;border-radius:4px;padding:0 4px}
+table.calc tr.total-row td{font-weight:600;background:#f9f9f7;font-size:14px}
+table.calc tr:last-child td{border-bottom:none}
+.result-block{background:var(--bg);border-radius:var(--radius);padding:16px 20px;margin-top:16px;display:flex;align-items:center;justify-content:space-between}
+.result-block .lbl{font-size:12px;color:var(--text-muted)}
+.result-block .val{font-size:28px;font-weight:700}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500}
+.badge.ok{background:var(--green-light);color:var(--green)}
+.badge.fail{background:var(--red-light);color:var(--red)}
+.badge.warn{background:var(--amber-light);color:var(--amber)}
+.badge.info{background:var(--blue-light);color:var(--blue-text)}
+.match-hint{font-size:12px;color:var(--blue-text);margin-top:6px;display:flex;align-items:center;gap:4px}
+.btn-row{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+button{font-size:13px;padding:8px 16px;border-radius:var(--radius);cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;gap:6px;transition:all .15s;font-family:inherit}
+button:hover{background:var(--bg);border-color:var(--border-strong)}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+button.primary:hover{background:#0c447c;border-color:#0c447c}
+button.danger{background:var(--red-light);color:var(--red);border-color:#f7c1c1}
+button:disabled{opacity:.4;cursor:not-allowed}
+.lote-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
+.lote-table th{text-align:left;font-size:11px;color:var(--text-faint);padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600}
+.lote-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+.lote-table tr:last-child td{border-bottom:none}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat .s-lbl{font-size:11px;color:var(--text-muted);font-weight:500}
+.stat .s-val{font-size:22px;font-weight:700;margin-top:2px}
+.divider{height:1px;background:var(--border);margin:16px 0}
+input[type=file]{display:none}
+@media(max-width:640px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .main{padding:16px}
+  .form-grid,.form-grid.three{grid-template-columns:1fr}
+}
+</style>
+
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<style>
+.ts-wrapper.single .ts-control{border:1px solid var(--border)!important;border-radius:var(--radius)!important;background:var(--surface)!important;color:var(--text)!important;font-size:13px!important;padding:7px 10px!important;min-height:36px!important;cursor:pointer!important;box-shadow:none!important}
+.ts-wrapper.single.focus .ts-control{border-color:var(--blue)!important;box-shadow:0 0 0 3px rgba(24,95,165,.1)!important}
+.ts-dropdown{border:1px solid var(--border)!important;border-radius:var(--radius)!important;background:var(--surface)!important;box-shadow:0 4px 16px rgba(0,0,0,.1)!important;font-size:13px!important;z-index:9999!important}
+.ts-dropdown .option{padding:8px 12px;color:var(--text);cursor:pointer;line-height:1.4}
+.ts-dropdown .option:hover,.ts-dropdown .option.active{background:var(--blue-light)!important;color:var(--blue-text)!important}
+.ts-dropdown-content{max-height:280px;overflow-y:auto}
+.ts-wrapper .ts-control input{color:var(--text)!important;font-size:13px!important;background:transparent!important}
+.ts-wrapper .clear-button{color:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo" style="padding:16px 20px 16px;border-bottom:1px solid var(--border)">
+      <img src="data:image/png;base64,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" alt="Metrocasa Construtora" style="display:block;height:42px;width:auto;margin-bottom:10px">
+      <div style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.2">Motor de Viabilidade</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Análise de Recompra</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" onclick="showPage('analise',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+        Análise Individual
+      </button>
+      <button class="nav-item" onclick="showPage('lote',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        Análise em Lote
+      </button>
+      <button class="nav-item" onclick="showPage('config',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Configurações
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      v1.0 · Exporta HTML/PDF<br>
+      Base: Google Sheets (CSV)
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ANÁLISE INDIVIDUAL -->
+    <div id="page-analise" class="page active">
+      <div class="page-header">
+        <h2>Análise de Viabilidade de Recompra</h2>
+        <p>Preencha os dados ou carregue a base CSV para busca automática</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Base de dados</div>
+        <div class="upload-zone" onclick="document.getElementById('csvFile').click()">
+          <div class="icon">📊</div>
+          <strong>Clique para carregar CSV da Google Sheet</strong>
+          <span>Exporte sua planilha: Arquivo → Download → CSV (.csv)</span>
+        </div>
+        <input type="file" id="csvFile" accept=".csv,.tsv" onchange="loadCSV(this)">
+        <div id="fileStatus"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Identificação</div>
+        <div class="form-grid full">
+          <div class="field">
+            <label>Unidade (chave produto)</label>
+            <select id="unidadeSelect" placeholder="Buscar por unidade, empreendimento ou cliente…" autocomplete="off">
+              <option value="">— Carregue um CSV para listar as unidades —</option>
+            </select>
+          </div>
+        </div>
+        <div id="matchHint"></div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Nome do cliente (confirmação)</label>
+            <input type="text" id="nomeCliente" placeholder="Preenchido automaticamente">
+          </div>
+          <div class="field">
+            <label>Chave produto (referência)</label>
+            <input type="text" id="unidade" placeholder="Preenchido automaticamente">
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="form-grid three">
+          <div class="field">
+            <label>Empreendimento</label>
+            <input type="text" id="empreendimento" placeholder="Auto-preenchido">
+          </div>
+          <div class="field">
+            <label>Tipologia / Cat. Uso</label>
+            <input type="text" id="tipologia" placeholder="Auto-preenchido">
+          </div>
+          <div class="field">
+            <label>Área (m²)</label>
+            <input type="text" id="area" placeholder="Auto-preenchido">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Valor de venda atual (R$)</label>
+            <input type="text" id="valorVenda" placeholder="0,00" oninput="calcular()">
+          </div>
+          <div class="field">
+            <label>Data da análise</label>
+            <input type="date" id="dataAnalise">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Memória de cálculo</div>
+        <div class="table-wrap">
+          <table class="calc">
+            <thead>
+              <tr>
+                <th style="width:36px">Item</th>
+                <th>Descrição</th>
+                <th style="width:150px">Valor (R$)</th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td colspan="2" style="padding:10px;font-size:13px">(=) SALDO / RESULTADO DA TRANSAÇÃO</td>
+                <td class="num" id="totalCell" style="padding:10px;font-size:15px">0,00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="result-block">
+          <div>
+            <div class="lbl">Resultado da transação</div>
+            <div class="val" id="resultValue">R$ 0,00</div>
+          </div>
+          <div id="statusBadge"></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="field">
+          <label>Observações</label>
+          <textarea id="observacoes" placeholder="Condicionantes da análise, pendências, informações adicionais…"></textarea>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="primary" onclick="gerarPDF()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Gerar Relatório PDF
+        </button>
+        <button onclick="limpar()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+          Limpar
+        </button>
+      </div>
+    </div>
+
+    <!-- ANÁLISE EM LOTE -->
+    <div id="page-lote" class="page">
+      <div class="page-header">
+        <h2>Análise em Lote</h2>
+        <p>Processa múltiplas unidades da base carregada e exporta ranking de viabilidade</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Filtros</div>
+        <div class="form-grid three">
+          <div class="field">
+            <label>Empreendimento</label>
+            <select id="filtroEmp"><option value="">Todos</option></select>
+          </div>
+          <div class="field">
+            <label>Fase</label>
+            <select id="filtroFase"><option value="">Todas</option></select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="filtroStatus"><option value="">Todos</option></select>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="primary" onclick="processarLote()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Processar lote
+          </button>
+          <button onclick="exportarCSV()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      <div id="loteResult"></div>
+    </div>
+
+    <!-- CONFIGURAÇÕES -->
+    <div id="page-config" class="page">
+      <div class="page-header">
+        <h2>Configurações</h2>
+        <p>Ajuste taxas, valores fixos e critérios de viabilidade. Aplicados automaticamente nos cálculos.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Critérios de viabilidade</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Saldo mínimo para aprovação (R$)</label>
+            <input type="number" id="thresholdMin" value="0" step="500">
+          </div>
+          <div class="field">
+            <label>Saldo de atenção — abaixo é alerta (R$)</label>
+            <input type="number" id="thresholdAlert" value="10000" step="1000">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Alíquotas e taxas</div>
+        <div class="form-grid three">
+          <div class="field"><label>RET — alíquota (%)</label><input type="number" id="retRate" value="4" step="0.01"></div>
+          <div class="field"><label>Crédito RET (%)</label><input type="number" id="retCreditRate" value="2.4" step="0.01"></div>
+          <div class="field"><label>Comissão — cadeia de vendas (%)</label><input type="number" id="comissaoRate" value="5" step="0.01"></div>
+        </div>
+        <div class="form-grid three">
+          <div class="field"><label>ITBI recompra (%)</label><input type="number" id="itbiRate" value="3" step="0.01"></div>
+          <div class="field"><label>ITBI revenda base (%)</label><input type="number" id="itbiRevendaRate" value="0.5" step="0.01"></div>
+          <div class="field"><label>ITBI revenda dif. CV (%)</label><input type="number" id="itbiDifRate" value="3" step="0.01"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Valores fixos (R$)</div>
+        <div class="form-grid three">
+          <div class="field"><label>Avaliação CEF</label><input type="number" id="avaliacaoVal" value="750" step="50"></div>
+          <div class="field"><label>TCCAV</label><input type="number" id="tccavVal" value="300" step="50"></div>
+          <div class="field"><label>Emolumentos escrituração</label><input type="number" id="emolRecompraVal" value="3000" step="100"></div>
+        </div>
+        <div class="form-grid three">
+          <div class="field"><label>Emolumentos fiduciária recompra</label><input type="number" id="emolFiduciaria1Val" value="2800" step="100"></div>
+          <div class="field"><label>Emolumentos fiduciária revenda</label><input type="number" id="emolFiduciaria2Val" value="4800" step="100"></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="primary" onclick="salvarConfig()">Salvar configurações</button>
+        <button onclick="resetConfig()">Restaurar padrões</button>
+      </div>
+      <div id="configMsg" style="margin-top:10px;font-size:13px;color:var(--green)"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+let csvData = [];
+let loteResults = [];
+
+const ITEMS = [
+  {id:1,  desc:"(+) Recebimento previsto pelo(a) novo(a) cliente e CEF",                                              sinal:1,  auto:'valorVenda'},
+  {id:2,  desc:"(-) Recolhimento dos impostos sobre a receita — RET — Regime Especial de Tributação",                sinal:-1, auto:'ret'},
+  {id:3,  desc:"(+) Crédito para dedução da base de cálculo — RET — Regime Especial de Tributação",                  sinal:1,  auto:'retCredito'},
+  {id:4,  desc:"(-) Remunerações pagas — Cadeia de vendas, Crédito Imobiliário, Repasse, CCA — Estimativa 5%",       sinal:-1, auto:'comissao'},
+  {id:5,  desc:"(-) Liquidação do saldo devedor junto à CEF",                                                         sinal:-1, auto:'manual'},
+  {id:6,  desc:"(-) Emolumentos cartorários para escrituração — Recompra",                                            sinal:-1, auto:'emolRecompra'},
+  {id:7,  desc:"(-) ITBI — Recompra",                                                                                 sinal:-1, auto:'itbiRecompra'},
+  {id:8,  desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Recompra",                        sinal:-1, auto:'emolFiduciaria1'},
+  {id:9,  desc:"(-) IPTU, quando não isento",                                                                         sinal:-1, auto:'manual'},
+  {id:10, desc:"(-) Cota condominial em atraso + Acrescer 02 Cotas até a Entrega",                                   sinal:-1, auto:'manual'},
+  {id:11, desc:"(-) Tarifa Avaliação de Bens Recebidos em Garantia — Unidade em Construção ou Concluída",            sinal:-1, auto:'avaliacao'},
+  {id:12, desc:"(-) TCCAV — Tarifa de Cobertura de Custos à Vista — Contrato de PF — Pessoa Física",                 sinal:-1, auto:'tccav'},
+  {id:13, desc:"(-) ITBI — Revenda (Teto R$ 120.968,00 x 0,50% + Dif. CV x 3%)",                                    sinal:-1, auto:'itbiRevenda'},
+  {id:14, desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Revenda",                         sinal:-1, auto:'emolFiduciaria2'},
+  {id:15, desc:"(-) Reparos de unidade",                                                                              sinal:-1, auto:'manual'},
+  {id:16, desc:"(-) Restituição parcial ou total dos valores pagos c/ recursos próprios pelo(a) cliente",             sinal:-1, auto:'manual'},
+];
+
+function g(id){return document.getElementById(id)}
+function fmt(v){
+  if(v===null||v===undefined||v==='')return '0,00';
+  return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function parseBR(s){
+  if(!s&&s!==0)return 0;
+  return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0;
+}
+
+function getConfig(){
+  return {
+    retRate: parseFloat(g('retRate')?.value||4)/100,
+    retCreditRate: parseFloat(g('retCreditRate')?.value||2.4)/100,
+    comissaoRate: parseFloat(g('comissaoRate')?.value||5)/100,
+    itbiRate: parseFloat(g('itbiRate')?.value||3)/100,
+    itbiRevendaRate: parseFloat(g('itbiRevendaRate')?.value||0.5)/100,
+    itbiDifRate: parseFloat(g('itbiDifRate')?.value||3)/100,
+    tccav: parseFloat(g('tccavVal')?.value||300),
+    avaliacao: parseFloat(g('avaliacaoVal')?.value||750),
+    emolRecompra: parseFloat(g('emolRecompraVal')?.value||3000),
+    emolFiduciaria1: parseFloat(g('emolFiduciaria1Val')?.value||2800),
+    emolFiduciaria2: parseFloat(g('emolFiduciaria2Val')?.value||4800),
+    thMin: parseFloat(g('thresholdMin')?.value||0),
+    thAlert: parseFloat(g('thresholdAlert')?.value||10000),
+  };
+}
+
+function renderItems(){
+  const tbody = g('itemsBody');
+  if(!tbody) return;
+  tbody.innerHTML = ITEMS.map(it=>`
+    <tr>
+      <td style="color:var(--text-faint);font-size:12px">${it.id}</td>
+      <td style="font-size:12px;line-height:1.4">${it.desc}</td>
+      <td><input type="text" id="item${it.id}" value="0,00" onchange="manualChange(${it.id},this.value)" style="width:100%"></td>
+    </tr>`).join('');
+}
+
+function manualChange(id, val){
+  const item = ITEMS.find(i=>i.id===id);
+  if(item) item._manual = parseBR(val);
+  calcular();
+}
+
+function calcular(){
+  const vv = parseBR(g('valorVenda')?.value||'0');
+  const cfg = getConfig();
+
+  const autos = {
+    valorVenda: vv,
+    ret: vv * cfg.retRate,
+    retCredito: vv * cfg.retCreditRate,
+    comissao: vv * cfg.comissaoRate,
+    itbiRecompra: vv * cfg.itbiRate,
+    emolRecompra: cfg.emolRecompra,
+    emolFiduciaria1: cfg.emolFiduciaria1,
+    itbiRevenda: Math.min(vv, 120968) * cfg.itbiRevendaRate + vv * cfg.itbiDifRate,
+    emolFiduciaria2: cfg.emolFiduciaria2,
+    tccav: cfg.tccav,
+    avaliacao: cfg.avaliacao,
+  };
+
+  ITEMS.forEach(it=>{
+    if(it.auto === 'manual') return;
+    const el = g('item'+it.id);
+    if(!el || el === document.activeElement) return;
+    const newVal = autos[it.auto] || 0;
+    it._auto = newVal;
+    el.value = fmt(newVal);
+  });
+
+  let total = 0;
+  ITEMS.forEach(it=>{
+    const el = g('item'+it.id);
+    const v = el ? parseBR(el.value) : 0;
+    total += it.sinal === 1 ? v : -v;
+  });
+
+  const tc = g('totalCell');
+  const rv = g('resultValue');
+  const sb = g('statusBadge');
+  if(!tc) return;
+
+  tc.textContent = fmt(total);
+  rv.textContent = 'R$ ' + fmt(total);
+
+  const thMin = cfg.thMin;
+  const thAlert = cfg.thAlert;
+
+  if(total >= thMin){
+    rv.style.color = 'var(--green)';
+    tc.style.color = 'var(--green)';
+    if(total < thAlert){
+      sb.innerHTML = `<span class="badge warn">⚠ Viável com atenção — abaixo de R$ ${fmt(thAlert)}</span>`;
+    } else {
+      sb.innerHTML = `<span class="badge ok">✓ Viável — aprovado para recompra</span>`;
+    }
+  } else {
+    rv.style.color = 'var(--red)';
+    tc.style.color = 'var(--red)';
+    sb.innerHTML = `<span class="badge fail">✗ Inviável — saldo negativo</span>`;
+  }
+}
+
+function loadCSV(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const text = e.target.result;
+    const sep = text.indexOf('\t') > -1 ? '\t' : ',';
+    const lines = text.split('\n').filter(l=>l.trim());
+    const headers = lines[0].split(sep).map(h=>h.trim().replace(/^"|"$/g,''));
+    csvData = lines.slice(1).map(line=>{
+      const cols = line.split(sep);
+      const obj={};
+      headers.forEach((h,i)=>obj[h]=(cols[i]||'').trim().replace(/^"|"$/g,''));
+      return obj;
+    }).filter(r=>r['COMPRADOR 1']||r['CHAVE PRODUTO']);
+
+    g('fileStatus').innerHTML = `<div class="file-pill">✓ ${file.name} · ${csvData.length} registros</div>`;
+
+    const fill = (selId, field)=>{
+      const sel = g(selId);
+      if(!sel) return;
+      sel.innerHTML = '<option value="">Todos</option>';
+      [...new Set(csvData.map(r=>r[field]).filter(Boolean))].sort()
+        .forEach(v=>{const o=document.createElement('option');o.value=v;o.text=v;sel.appendChild(o);});
+    };
+    fill('filtroEmp','EMPREENDIMENTO');
+    fill('filtroFase','FASE');
+    fill('filtroStatus','STATUS');
+
+    // populate unidade select with Tom Select
+    const sortedUnits = [...csvData].sort((a,b)=>{
+      const ea=a['EMPREENDIMENTO']||'', eb=b['EMPREENDIMENTO']||'';
+      if(ea!==eb) return ea.localeCompare(eb,'pt-BR');
+      return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'','pt-BR');
+    });
+    if(tomSel){
+      tomSel.clearOptions();
+      sortedUnits.forEach((r,i)=>{
+        const lbl=[r['EMPREENDIMENTO'],r['CHAVE PRODUTO'],r['COMPRADOR 1']].filter(Boolean).join(' · ');
+        tomSel.addOption({value:String(i),text:lbl});
+      });
+      tomSel.refreshOptions(false);
+      tomSel.clear(true);
+    } else {
+      const uSel=g('unidadeSelect');
+      if(uSel){
+        uSel.innerHTML='<option value="">— Selecione uma unidade —</option>';
+        sortedUnits.forEach((r,i)=>{
+          const o=document.createElement('option');
+          o.value=i;
+          o.text=[r['EMPREENDIMENTO'],r['CHAVE PRODUTO'],r['COMPRADOR 1']].filter(Boolean).join(' · ');
+          uSel.appendChild(o);
+        });
+        if(typeof TomSelect!=='undefined') initTS();
+      }
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function selecionarUnidade(idx){
+  if(idx===''||idx===null||idx===undefined||!csvData.length) return;
+  const sorted=[...csvData].sort((a,b)=>{
+    const ea=a['EMPREENDIMENTO']||'',eb=b['EMPREENDIMENTO']||'';
+    if(ea!==eb)return ea.localeCompare(eb,'pt-BR');
+    return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'','pt-BR');
+  });
+  const row=sorted[parseInt(idx)];
+  if(row) preencherDados(row);
+});
+  const row = sorted[parseInt(idx)];
+  if(row) preencherDados(row);
+}
+
+function buscarPorNome(){
+  const q = g('nomeCliente').value.toUpperCase().trim();
+  if(q.length < 3 || !csvData.length) return;
+  const match = csvData.find(r=>r['COMPRADOR 1']?.toUpperCase().includes(q));
+  if(match) preencherDados(match);
+}
+
+function buscarPorUnidade(){
+  const q = g('unidade').value.toUpperCase().trim();
+  if(q.length < 3 || !csvData.length) return;
+  const match = csvData.find(r=>r['CHAVE PRODUTO']?.toUpperCase().includes(q));
+  if(match) preencherDados(match);
+}
+
+function preencherDados(row){
+  g('nomeCliente').value = row['COMPRADOR 1']||'';
+  g('unidade').value = row['CHAVE PRODUTO']||'';
+  g('empreendimento').value = row['EMPREENDIMENTO']||'';
+  g('tipologia').value = [row['TIPOLOGIA'],row['CAT USO']].filter(Boolean).join(' — ');
+  g('area').value = row['METRAGEM']||'';
+
+  const vgv = parseFloat(row['VGV'])||0;
+  g('valorVenda').value = fmt(vgv);
+
+  const item5 = g('item5');
+  if(item5){
+    const saldo = parseFloat(String(row['VLR SALDO DEVEDOR METROCASA']||'0').replace('R$','').replace(/\./g,'').replace(',','.'))||0;
+    item5.value = fmt(saldo);
+    ITEMS[4]._manual = saldo;
+  }
+  const item10 = g('item10');
+  if(item10){
+    const inad = parseFloat(String(row['TOTAL INADIMPLÊNCIA CAIXA']||'0').replace(/\./g,'').replace(',','.'))||0;
+    item10.value = fmt(inad);
+    ITEMS[9]._manual = inad;
+  }
+
+  // sync dropdown if triggered from text
+  const uSel = g('unidadeSelect');
+  if(uSel && uSel.options.length > 1){
+    const sorted = [...csvData].sort((a,b)=>{
+      const ea=a['EMPREENDIMENTO']||''; const eb=b['EMPREENDIMENTO']||'';
+      if(ea!==eb) return ea.localeCompare(eb);
+      return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'');
+    });
+    const idx = sorted.findIndex(r=>r['CHAVE PRODUTO']===row['CHAVE PRODUTO']&&r['COMPRADOR 1']===row['COMPRADOR 1']);
+    if(idx>-1) uSel.value = idx;
+  }
+  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · ${row['FASE']||''} · ${row['STATUS']||''}</div>`;
+  calcular();
+}
+
+function calcularResultado(vv, saldoCEF, inadCaixa, cfg){
+  const ret = vv * cfg.retRate;
+  const retC = vv * cfg.retCreditRate;
+  const comissao = vv * cfg.comissaoRate;
+  const itbiR = vv * cfg.itbiRate;
+  const itbiRev = Math.min(vv,120968)*cfg.itbiRevendaRate + vv*cfg.itbiDifRate;
+  return vv - ret + retC - comissao - saldoCEF - cfg.emolRecompra - itbiR - cfg.emolFiduciaria1
+         - inadCaixa - cfg.avaliacao - cfg.tccav - itbiRev - cfg.emolFiduciaria2;
+}
+
+function processarLote(){
+  if(!csvData.length){
+    g('loteResult').innerHTML = '<p style="color:var(--red);font-size:13px">Carregue um CSV primeiro na aba Análise.</p>';
+    return;
+  }
+  const cfg = getConfig();
+  const empF = g('filtroEmp').value;
+  const faseF = g('filtroFase').value;
+  const statF = g('filtroStatus').value;
+
+  let filtered = csvData.filter(r=>parseFloat(r['VGV'])>0);
+  if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
+  if(faseF) filtered = filtered.filter(r=>r['FASE']===faseF);
+  if(statF) filtered = filtered.filter(r=>r['STATUS']===statF);
+
+  loteResults = filtered.map(row=>{
+    const vv = parseFloat(row['VGV'])||0;
+    const saldo = parseFloat(String(row['VLR SALDO DEVEDOR METROCASA']||'0').replace('R$','').replace(/\./g,'').replace(',','.'))||0;
+    const inad = parseFloat(String(row['TOTAL INADIMPLÊNCIA CAIXA']||'0').replace(/\./g,'').replace(',','.'))||0;
+    const resultado = calcularResultado(vv, saldo, inad, cfg);
+    return {...row, _vv:vv, _saldo:saldo, _inad:inad, _resultado:resultado, _viavel:resultado>=cfg.thMin};
+  }).sort((a,b)=>b._resultado-a._resultado);
+
+  const viaveis = loteResults.filter(r=>r._viavel).length;
+  const totalVGV = loteResults.reduce((s,r)=>s+r._vv,0);
+
+  const rows = loteResults.map(r=>`
+    <tr>
+      <td>${r['COMPRADOR 1']||'—'}</td>
+      <td>${r['CHAVE PRODUTO']||'—'}</td>
+      <td>${r['EMPREENDIMENTO']||'—'}</td>
+      <td style="text-align:right">R$ ${fmt(r._vv)}</td>
+      <td style="text-align:right">R$ ${fmt(r._saldo)}</td>
+      <td style="text-align:right;font-weight:500;color:${r._viavel?'var(--green)':'var(--red)'}">
+        ${r._viavel?'✓':'✗'} R$ ${fmt(r._resultado)}
+      </td>
+    </tr>`).join('');
+
+  g('loteResult').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="s-lbl">Analisados</div><div class="s-val">${loteResults.length}</div></div>
+      <div class="stat"><div class="s-lbl">Viáveis</div><div class="s-val" style="color:var(--green)">${viaveis}</div></div>
+      <div class="stat"><div class="s-lbl">Inviáveis</div><div class="s-val" style="color:var(--red)">${loteResults.length-viaveis}</div></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="lote-table">
+          <thead><tr>
+            <th>Cliente</th><th>Unidade</th><th>Empreendimento</th>
+            <th style="text-align:right">VGV</th>
+            <th style="text-align:right">Saldo CEF</th>
+            <th style="text-align:right">Resultado</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function exportarCSV(){
+  if(!loteResults.length){alert('Execute o processamento de lote primeiro.');return;}
+  const header = ['Cliente','Unidade','Empreendimento','VGV','Saldo CEF','Inadimplência','Resultado','Viável'];
+  const rows = loteResults.map(r=>[
+    r['COMPRADOR 1'],r['CHAVE PRODUTO'],r['EMPREENDIMENTO'],
+    r._vv.toFixed(2),r._saldo.toFixed(2),r._inad.toFixed(2),
+    r._resultado.toFixed(2),r._viavel?'SIM':'NÃO'
+  ]);
+  const csv = [header,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='viabilidade_lote_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function gerarPDF(){
+  const nome = g('nomeCliente').value||'(não informado)';
+  const unidade = g('unidade').value||'';
+  const emp = g('empreendimento').value||'';
+  const tip = g('tipologia').value||'';
+  const area = g('area').value||'';
+  const obs = g('observacoes').value||'';
+  const data = g('dataAnalise').value
+    ? new Date(g('dataAnalise').value+'T12:00:00').toLocaleDateString('pt-BR')
+    : new Date().toLocaleDateString('pt-BR');
+  const vv = g('valorVenda').value||'0,00';
+  const total = g('resultValue').textContent||'R$ 0,00';
+
+  const linhas = ITEMS.map(it=>{
+    const el = g('item'+it.id);
+    const v = el ? parseBR(el.value) : 0;
+    return `<tr>
+      <td style="padding:5px 8px;border-bottom:1px solid #e8e8e8;font-size:11px;width:32px;color:#666">${it.id}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #e8e8e8;font-size:11px">${it.desc}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #e8e8e8;font-size:11px;text-align:right;white-space:nowrap">${v===0?'—':fmt(v)}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Viabilidade de Recompra — ${nome}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a18;padding:32px 40px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #1a1a18}
+  .header h1{font-size:13px;font-weight:700;letter-spacing:.04em}
+  .header .date{font-size:11px;color:#555}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #ddd;margin-bottom:16px}
+  .meta-cell{padding:8px 12px;border-bottom:1px solid #ddd}
+  .meta-cell:nth-child(odd){border-right:1px solid #ddd}
+  .meta-cell .lbl{font-size:10px;color:#777;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  .meta-cell .val{font-size:12px;font-weight:500}
+  .section-title{font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:8px;margin-top:16px}
+  .vv-row{text-align:right;border:1px solid #ddd;border-bottom:none;padding:6px 10px;font-size:11px;background:#f9f9f7}
+  table{width:100%;border-collapse:collapse;border:1px solid #ddd}
+  .total-row td{background:#f0f0ee;font-weight:700;font-size:12px;padding:8px}
+  .obs{border:1px solid #ddd;padding:12px;margin-top:12px;font-size:11px;min-height:48px}
+  .obs .lbl{font-size:10px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+  .footer{margin-top:20px;padding-top:10px;border-top:1px solid #ddd;font-size:10px;color:#888}
+  @media print{body{padding:16px 20px}}
+</style>
+
+</head><body>
+<div class="header">
+  <div>
+    <h1>ANÁLISE DA VIABILIDADE DE RECOMPRA</h1>
+    <div style="font-size:11px;color:#555;margin-top:3px">Metrocasa Construtora</div>
+  </div>
+  <div class="date">${data}</div>
+</div>
+
+<div class="meta">
+  <div class="meta-cell"><div class="lbl">Nome</div><div class="val">${nome}</div></div>
+  <div class="meta-cell"><div class="lbl">Empreendimento / Unidade</div><div class="val">${emp} ${unidade}</div></div>
+  <div class="meta-cell"><div class="lbl">Tipologia / Cat. Uso</div><div class="val">${tip}</div></div>
+  <div class="meta-cell"><div class="lbl">Área (m²)</div><div class="val">${area}</div></div>
+  <div class="meta-cell" style="border-bottom:none"><div class="lbl">Chaves</div><div class="val">Chave não entregue — Em posse da MC</div></div>
+  <div class="meta-cell" style="border-bottom:none"></div>
+</div>
+
+<div class="section-title">MEMÓRIA DE CÁLCULO</div>
+<div class="vv-row">Valor de Venda Atual: <strong>R$ ${vv}</strong></div>
+<table>
+  <thead>
+    <tr style="background:#f0f0ee">
+      <th style="padding:6px 8px;text-align:left;font-size:10px;width:32px;border-bottom:1px solid #ddd">ITEM</th>
+      <th style="padding:6px 8px;text-align:left;font-size:10px;border-bottom:1px solid #ddd">DESCRIÇÃO</th>
+      <th style="padding:6px 8px;text-align:right;font-size:10px;border-bottom:1px solid #ddd;white-space:nowrap">VALOR (R$)</th>
+    </tr>
+  </thead>
+  <tbody>${linhas}</tbody>
+  <tfoot>
+    <tr class="total-row">
+      <td style="padding:8px;border-top:2px solid #999" colspan="2">(=) SALDO / RESULTADO DA TRANSAÇÃO</td>
+      <td style="padding:8px;text-align:right;border-top:2px solid #999;font-size:14px">${total}</td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="obs">
+  <div class="lbl">Observações</div>
+  ${obs||'—'}
+</div>
+
+<div class="footer">
+  Anexos obrigatórios: * Proposta ou Quadro Resumo do Contrato de Venda e Compra &nbsp;·&nbsp; * Demonstrativo de Pagamentos (Extrato Metrocasa) &nbsp;·&nbsp; * 2ª Via da Notificação de Lançamento e Consulta e/ou Extrato de Débitos de IPTU &nbsp;·&nbsp; * Boleto da CEF &nbsp;·&nbsp; * Relatório analítico e consolidado (impresso e eletrônico — Excel)
+</div>
+
+<script>window.onload=()=>{window.print()}<\/script>
+</body></html>`;
+
+  const blob = new Blob([html],{type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url;
+  a.download=`viabilidade_${nome.replace(/\s+/g,'_').substring(0,20)}_${unidade.replace(/\s/g,'_')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function limpar(){
+  ['nomeCliente','unidade','empreendimento','tipologia','area','valorVenda','observacoes'].forEach(id=>{
+    const el=g(id); if(el) el.value='';
+  });
+  ITEMS.forEach(it=>{ delete it._manual; delete it._auto; });
+  renderItems();
+  g('matchHint').innerHTML='';
+  calcular();
+}
+
+function showPage(name, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  g('page-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function salvarConfig(){
+  g('configMsg').textContent = '✓ Configurações salvas. Os próximos cálculos usarão estes valores.';
+  setTimeout(()=>{g('configMsg').textContent='';},3000);
+  calcular();
+}
+
+function resetConfig(){
+  g('retRate').value=4; g('retCreditRate').value=2.4; g('comissaoRate').value=5;
+  g('itbiRate').value=3; g('itbiRevendaRate').value=0.5; g('itbiDifRate').value=3;
+  g('tccavVal').value=300; g('avaliacaoVal').value=750;
+  g('emolRecompraVal').value=3000; g('emolFiduciaria1Val').value=2800; g('emolFiduciaria2Val').value=4800;
+  g('thresholdMin').value=0; g('thresholdAlert').value=10000;
+  calcular();
+}
+
+g('dataAnalise').value = new Date().toISOString().split('T')[0];
+renderItems();
+calcular();
+
+function initTS(){
+  if(tomSel){tomSel.destroy();tomSel=null;}
+  tomSel = new TomSelect('#unidadeSelect',{
+    placeholder:'Buscar por unidade, empreendimento ou cliente…',
+    searchField:['text'],
+    maxOptions:500,
+    render:{
+      option:function(data){
+        return '<div>'+data.text+'</div>';
+      }
+    },
+    onChange:function(val){selecionarUnidade(val);}
+  });
+}
+// Try to init immediately (in case script loads after DOM)
+if(typeof TomSelect !== 'undefined'){initTS();}
+else{document.addEventListener('DOMContentLoaded',()=>{if(typeof TomSelect!=='undefined')initTS();});}
+
+// ── Tom Select init ──────────────────────────────────────────────────────────
+let tomSel = null;
+function initTS(){
+  if(tomSel){tomSel.destroy();tomSel=null;}
+  const el = g('unidadeSelect');
+  if(!el || typeof TomSelect==='undefined') return;
+  tomSel = new TomSelect(el,{
+    placeholder:'Buscar por unidade, empreendimento ou cliente…',
+    maxOptions:1000,
+    searchField:['text'],
+    onChange:function(v){ selecionarUnidade(v); }
+  });
+}
+document.addEventListener('DOMContentLoaded', function(){
+  if(typeof TomSelect !== 'undefined') initTS();
+});
+</script>
+</body>
+</html>
