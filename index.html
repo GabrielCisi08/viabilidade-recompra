@@ -173,7 +173,7 @@ input[type=file]{display:none}
           <div class="field">
             <label>Unidade (chave produto)</label>
             <div class="custom-select-wrap" id="csWrap">
-              <input type="text" id="csInput" class="cs-input" placeholder="— Carregue um CSV para buscar unidade —" autocomplete="off" readonly onclick="toggleCS()" oninput="filterCS(this.value)">
+              <input type="text" id="csInput" class="cs-input" placeholder="Carregando base…" autocomplete="off" readonly onclick="toggleCS()" oninput="filterCS(this.value)">
               <div class="cs-dropdown" id="csDropdown" style="display:none">
                 <div class="cs-list" id="csList"></div>
               </div>
@@ -547,19 +547,17 @@ function processData(raw){
   };
   fill('filtroEmp','EMPREENDIMENTO');
 
-  const sortedUnits=[...csvData].sort((a,b)=>{
-    const ea=a['EMPREENDIMENTO']||'',eb=b['EMPREENDIMENTO']||'';
-    if(ea!==eb) return ea.localeCompare(eb,'pt-BR');
-    return (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR');
-  });
+  const sortedUnits=[...csvData].sort((a,b)=>
+    (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR',{numeric:true})
+  );
   window._csItems=[];
   sortedUnits.forEach((r,i)=>{
-    const lbl=[r['EMPREENDIMENTO'],r['UNIDADE'],r['NOME']].filter(Boolean).join(' · ');
-    window._csItems.push({idx:i,label:lbl});
+    const lbl = r['UNIDADE']||'';
+    window._csItems.push({idx:i,label:lbl,unidade:lbl.toLowerCase()});
   });
   renderCSList('');
   g('csInput').readOnly=false;
-  g('csInput').placeholder='Buscar por unidade, empreendimento ou cliente…';
+  g('csInput').placeholder='Digite o número da unidade…';
 }
 
 function formatChaves(v){
@@ -574,15 +572,12 @@ function formatChaves(v){
 
 function selecionarUnidade(idx){
   if(idx===''||idx===null||idx===undefined||!csvData.length) return;
-  const sorted=[...csvData].sort((a,b)=>{
-    const ea=a['EMPREENDIMENTO']||'',eb=b['EMPREENDIMENTO']||'';
-    if(ea!==eb) return ea.localeCompare(eb,'pt-BR');
-    return (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR');
-  });
+  const sorted=[...csvData].sort((a,b)=>
+    (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR',{numeric:true})
+  );
   const row=sorted[parseInt(idx)];
   if(!row) return;
-  const lbl=[row['EMPREENDIMENTO'],row['UNIDADE'],row['NOME']].filter(Boolean).join(' \u00b7 ');
-  g('csInput').value=lbl;
+  g('csInput').value = row['UNIDADE']||'';
   closeCS();
   preencherDados(row);
 }
@@ -843,7 +838,8 @@ function renderCSList(query){
   const list = g('csList');
   if(!list) return;
   const q = query.toLowerCase().trim();
-  const filtered = q ? window._csItems.filter(i=>i.label.toLowerCase().includes(q)) : window._csItems;
+  // Busca apenas pelo número/código da unidade (coluna R)
+  const filtered = q ? window._csItems.filter(i=>i.unidade && i.unidade.includes(q)) : window._csItems;
   if(!filtered.length){
     list.innerHTML='<div class="cs-empty">Nenhuma unidade encontrada</div>';
     return;
