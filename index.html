@@ -374,22 +374,26 @@ let csvData = [];
 let loteResults = [];
 
 const ITEMS = [
-  {id:1,  desc:"(+) Recebimento previsto pelo(a) novo(a) cliente e CEF",                                              sinal:1,  auto:'valorVenda'},
-  {id:2,  desc:"(-) Recolhimento dos impostos sobre a receita — RET — Regime Especial de Tributação",                sinal:-1, auto:'ret'},
-  {id:3,  desc:"(+) Crédito para dedução da base de cálculo — RET — Regime Especial de Tributação",                  sinal:1,  auto:'retCredito'},
-  {id:4,  desc:"(-) Remunerações pagas — Cadeia de vendas, Crédito Imobiliário, Repasse, CCA — Estimativa 5%",       sinal:-1, auto:'comissao'},
-  {id:5,  desc:"(-) Liquidação do saldo devedor junto à CEF",                                                         sinal:-1, auto:'manual'},
-  {id:6,  desc:"(-) Emolumentos cartorários para escrituração — Recompra",                                            sinal:-1, auto:'emolRecompra'},
-  {id:7,  desc:"(-) ITBI — Recompra",                                                                                 sinal:-1, auto:'itbiRecompra'},
-  {id:8,  desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Recompra",                        sinal:-1, auto:'emolFiduciaria1'},
-  {id:9,  desc:"(-) IPTU, quando não isento",                                                                         sinal:-1, auto:'manual'},
-  {id:10, desc:"(-) Cota condominial em atraso + Acrescer 02 Cotas até a Entrega",                                   sinal:-1, auto:'manual'},
-  {id:11, desc:"(-) Tarifa Avaliação de Bens Recebidos em Garantia — Unidade em Construção ou Concluída",            sinal:-1, auto:'avaliacao'},
-  {id:12, desc:"(-) TCCAV — Tarifa de Cobertura de Custos à Vista — Contrato de PF — Pessoa Física",                 sinal:-1, auto:'tccav'},
-  {id:13, desc:"(-) ITBI — Revenda (Teto R$ 120.968,00 x 0,50% + Dif. CV x 3%)",                                    sinal:-1, auto:'itbiRevenda'},
-  {id:14, desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Revenda",                         sinal:-1, auto:'emolFiduciaria2'},
-  {id:15, desc:"(-) Reparos de unidade",                                                                              sinal:-1, auto:'manual'},
-  {id:16, desc:"(-) Restituição parcial ou total dos valores pagos c/ recursos próprios pelo(a) cliente",             sinal:-1, auto:'manual'},
+  {id:1,  col:99,  desc:"(+) Valor recebido de recursos próprios do(a) cliente",                                            sinal:1},
+  {id:2,  col:100, desc:"(+) Valor recebido da CEF",                                                                        sinal:1},
+  {id:3,  col:101, desc:"(-) Recolhimento dos impostos sobre a receita — RET — Regime Especial de Tributação",             sinal:-1},
+  {id:4,  col:102, desc:"(-) Remunerações pagas — Cadeia de vendas, CCA — Primeira Venda (Estimativa 3%)",                  sinal:-1},
+  {id:5,  col:103, desc:"(-) Restituição parcial ou total dos valores pagos c/ recursos próprios pelo(a) cliente",          sinal:-1},
+  {id:6,  col:104, desc:"(-) Liquidação do saldo devedor junto à CEF",                                                       sinal:-1},
+  {id:7,  col:105, desc:"(-) Emolumentos cartorários para escrituração — Recompra",                                          sinal:-1},
+  {id:8,  col:106, desc:"(-) ITBI — Recompra",                                                                                sinal:-1},
+  {id:9,  col:107, desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Recompra",                       sinal:-1},
+  {id:10, col:108, desc:"(-) IPTU, quando não isento",                                                                       sinal:-1},
+  {id:11, col:109, desc:"(-) Cota condominial em atraso + Acrescer 02 Cotas até a Entrega",                                  sinal:-1},
+  {id:12, col:110, desc:"(-) Tarifa para reavaliação da unidade",                                                            sinal:-1},
+  {id:13, col:111, desc:"(+) Valor estimado para revenda",                                                                  sinal:1},
+  {id:14, col:112, desc:"(+) Crédito para dedução da base de cálculo — RET",                                                 sinal:1},
+  {id:15, col:113, desc:"(-) ITBI — Revenda",                                                                                sinal:-1},
+  {id:16, col:114, desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Revenda",                       sinal:-1},
+  {id:17, col:115, desc:"(-) Recolhimento dos impostos sobre a receita — RET (Revenda)",                                     sinal:-1},
+  {id:18, col:116, desc:"(-) Remunerações pagas — Cadeia de vendas, CCA — Revenda (Estimativa 3%)",                          sinal:-1},
+  {id:19, col:117, desc:"(-) Taxa contrato CEF",                                                                             sinal:-1},
+  {id:20, col:119, desc:"(-) Reparos de Unidade",                                                                            sinal:-1},
 ];
 
 function g(id){return document.getElementById(id)}
@@ -432,38 +436,11 @@ function renderItems(){
 }
 
 function manualChange(id, val){
-  const item = ITEMS.find(i=>i.id===id);
-  if(item) item._manual = parseBR(val);
   calcular();
 }
 
 function calcular(){
-  const vv = parseBR(g('valorVenda')?.value||'0');
   const cfg = getConfig();
-
-  const autos = {
-    valorVenda: vv,
-    ret: vv * cfg.retRate,
-    retCredito: vv * cfg.retCreditRate,
-    comissao: vv * cfg.comissaoRate,
-    itbiRecompra: vv * cfg.itbiRate,
-    emolRecompra: cfg.emolRecompra,
-    emolFiduciaria1: cfg.emolFiduciaria1,
-    itbiRevenda: Math.min(vv, 120968) * cfg.itbiRevendaRate + vv * cfg.itbiDifRate,
-    emolFiduciaria2: cfg.emolFiduciaria2,
-    tccav: cfg.tccav,
-    avaliacao: cfg.avaliacao,
-  };
-
-  ITEMS.forEach(it=>{
-    if(it.auto === 'manual') return;
-    const el = g('item'+it.id);
-    if(!el || el === document.activeElement) return;
-    const newVal = autos[it.auto] || 0;
-    it._auto = newVal;
-    el.value = fmt(newVal);
-  });
-
   let total = 0;
   ITEMS.forEach(it=>{
     const el = g('item'+it.id);
@@ -479,20 +456,16 @@ function calcular(){
   tc.textContent = fmt(total);
   rv.textContent = 'R$ ' + fmt(total);
 
-  const thMin = cfg.thMin;
-  const thAlert = cfg.thAlert;
-
+  const thMin = cfg.thMin, thAlert = cfg.thAlert;
   if(total >= thMin){
-    rv.style.color = 'var(--green)';
-    tc.style.color = 'var(--green)';
+    rv.style.color = 'var(--green)'; tc.style.color = 'var(--green)';
     if(total < thAlert){
       sb.innerHTML = `<span class="badge warn">⚠ Viável com atenção — abaixo de R$ ${fmt(thAlert)}</span>`;
     } else {
       sb.innerHTML = `<span class="badge ok">✓ Viável — aprovado para recompra</span>`;
     }
   } else {
-    rv.style.color = 'var(--red)';
-    tc.style.color = 'var(--red)';
+    rv.style.color = 'var(--red)'; tc.style.color = 'var(--red)';
     sb.innerHTML = `<span class="badge fail">✗ Inviável — saldo negativo</span>`;
   }
 }
@@ -517,7 +490,7 @@ function processData(raw){
   // raw = array de arrays (primeira linha = cabeçalho)
   // Mapeamento por coluna: D=3 nome, R=17 unidade, S=18 empreendimento,
   // T=19 data chaves, AF=31 tipologia, AG=32 área, AH=33 cat uso
-  const COL = {nome:3, unidade:17, emp:18, chaves:19, tipologia:31, area:32, catuso:33};
+  const COL = {nome:3, unidade:17, emp:18, chaves:19, tipologia:31, area:32, catuso:33, valorVenda:82, receita:96, vendaAnterior:97, saldoViab:98};
   const body = Array.isArray(raw[0]) ? raw.slice(1) : raw;
 
   csvData = body.map(r=>{
@@ -530,6 +503,10 @@ function processData(raw){
       'TIPOLOGIA': String(r[COL.tipologia]||'').trim(),
       'AREA': String(r[COL.area]||'').trim(),
       'CATUSO': String(r[COL.catuso]||'').trim(),
+      'VALOR_VENDA': parseNum(r[COL.valorVenda]),
+      'RECEITA': parseNum(r[COL.receita]),
+      'VENDA_ANTERIOR': parseNum(r[COL.vendaAnterior]),
+      'SALDO_VIAB': parseNum(r[COL.saldoViab]),
       '_raw': r
     };
   }).filter(r=>r && (r['UNIDADE']||r['NOME']));
@@ -558,6 +535,19 @@ function processData(raw){
   renderCSList('');
   g('csInput').readOnly=false;
   g('csInput').placeholder='Digite o número da unidade…';
+}
+
+function parseNum(v){
+  if(v===null||v===undefined||v==='') return 0;
+  if(typeof v === 'number') return v;
+  // Remove R$, espaços, pontos de milhar; troca vírgula decimal por ponto
+  let s = String(v).replace(/R\$/g,'').replace(/\s/g,'').trim();
+  // Se tem vírgula como decimal (formato BR)
+  if(s.indexOf(',')>-1){
+    s = s.replace(/\./g,'').replace(',','.');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
 }
 
 function formatChaves(v){
@@ -604,7 +594,19 @@ function preencherDados(row){
   g('area').value = row['AREA']||'';
   g('chavesInfo').value = row['CHAVES']||'CHAVES COM MC';
 
-  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'}</div>`;
+  // Valor de venda atual = Projeção de Venda da Sheet (coluna CE)
+  if(g('valorVenda')) g('valorVenda').value = fmt(row['VALOR_VENDA']||0);
+
+  // Preenche cada item da memória de cálculo a partir da coluna mapeada da Sheet
+  const raw = row['_raw']||[];
+  ITEMS.forEach(it=>{
+    const el = g('item'+it.id);
+    if(!el) return;
+    const val = parseNum(raw[it.col]);
+    el.value = fmt(Math.abs(val));
+  });
+
+  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Saldo Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
   calcular();
 }
 
@@ -620,25 +622,21 @@ function calcularResultado(vv, saldoCEF, inadCaixa, cfg){
 
 function processarLote(){
   if(!csvData.length){
-    g('loteResult').innerHTML = '<p style="color:var(--red);font-size:13px">Carregue um CSV primeiro na aba Análise.</p>';
+    g('loteResult').innerHTML = '<p style="color:var(--red);font-size:13px">Carregue a base primeiro.</p>';
     return;
   }
   const cfg = getConfig();
   const empF = g('filtroEmp').value;
 
-  let filtered = csvData.filter(r=>parseFloat(r['VGV'])>0);
+  let filtered = csvData.filter(r=>r['RECEITA']>0 || r['SALDO_VIAB']!==0);
   if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
 
   loteResults = filtered.map(row=>{
-    const vv = parseFloat(row['VGV'])||0;
-    const saldo = parseFloat(String(row['VLR SALDO DEVEDOR METROCASA']||'0').replace('R$','').replace(/\./g,'').replace(',','.'))||0;
-    const inad = parseFloat(String(row['TOTAL INADIMPLÊNCIA CAIXA']||'0').replace(/\./g,'').replace(',','.'))||0;
-    const resultado = calcularResultado(vv, saldo, inad, cfg);
-    return {...row, _vv:vv, _saldo:saldo, _inad:inad, _resultado:resultado, _viavel:resultado>=cfg.thMin};
+    const resultado = row['SALDO_VIAB']||0;
+    return {...row, _vv:row['RECEITA']||0, _resultado:resultado, _viavel:resultado>=cfg.thMin};
   }).sort((a,b)=>b._resultado-a._resultado);
 
   const viaveis = loteResults.filter(r=>r._viavel).length;
-  const totalVGV = loteResults.reduce((s,r)=>s+r._vv,0);
 
   const rows = loteResults.map(r=>`
     <tr>
@@ -646,7 +644,6 @@ function processarLote(){
       <td>${r['UNIDADE']||'—'}</td>
       <td>${r['EMPREENDIMENTO']||'—'}</td>
       <td style="text-align:right">R$ ${fmt(r._vv)}</td>
-      <td style="text-align:right">R$ ${fmt(r._saldo)}</td>
       <td style="text-align:right;font-weight:500;color:${r._viavel?'var(--green)':'var(--red)'}">
         ${r._viavel?'✓':'✗'} R$ ${fmt(r._resultado)}
       </td>
@@ -663,9 +660,8 @@ function processarLote(){
         <table class="lote-table">
           <thead><tr>
             <th>Cliente</th><th>Unidade</th><th>Empreendimento</th>
-            <th style="text-align:right">VGV</th>
-            <th style="text-align:right">Saldo CEF</th>
-            <th style="text-align:right">Resultado</th>
+            <th style="text-align:right">Receita</th>
+            <th style="text-align:right">Saldo Viabilidade</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -675,11 +671,10 @@ function processarLote(){
 
 function exportarCSV(){
   if(!loteResults.length){alert('Execute o processamento de lote primeiro.');return;}
-  const header = ['Cliente','Unidade','Empreendimento','VGV','Saldo CEF','Inadimplência','Resultado','Viável'];
+  const header = ['Cliente','Unidade','Empreendimento','Receita','Saldo Viabilidade','Viável'];
   const rows = loteResults.map(r=>[
     r['NOME'],r['UNIDADE'],r['EMPREENDIMENTO'],
-    r._vv.toFixed(2),r._saldo.toFixed(2),r._inad.toFixed(2),
-    r._resultado.toFixed(2),r._viavel?'SIM':'NÃO'
+    (r._vv||0).toFixed(2),(r._resultado||0).toFixed(2),r._viavel?'SIM':'NÃO'
   ]);
   const csv = [header,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
