@@ -208,6 +208,13 @@ input[type=file]{display:none}
         </div>
         <div class="form-grid">
           <div class="field">
+            <label>Chaves (data de entrega)</label>
+            <input type="text" id="chavesInfo" placeholder="Auto-preenchido — vazio = CHAVES COM MC">
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
             <label>Valor de venda atual (R$)</label>
             <input type="text" id="valorVenda" placeholder="0,00" oninput="calcular()">
           </div>
@@ -506,8 +513,27 @@ function loadFromSheet(){
     });
 }
 
-function processData(rows){
-  csvData = rows.filter(r=>r['COMPRADOR 1']||r['CHAVE PRODUTO']||r['EMPREENDIMENTO']);
+function processData(raw){
+  // raw = array de arrays (primeira linha = cabeçalho)
+  // Mapeamento por coluna: D=3 nome, R=17 unidade, S=18 empreendimento,
+  // T=19 data chaves, AF=31 tipologia, AG=32 área, AH=33 cat uso
+  const COL = {nome:3, unidade:17, emp:18, chaves:19, tipologia:31, area:32, catuso:33};
+  const body = Array.isArray(raw[0]) ? raw.slice(1) : raw;
+
+  csvData = body.map(r=>{
+    if(!Array.isArray(r)) return null;
+    return {
+      'NOME': String(r[COL.nome]||'').trim(),
+      'UNIDADE': String(r[COL.unidade]||'').trim(),
+      'EMPREENDIMENTO': String(r[COL.emp]||'').trim(),
+      'CHAVES': formatChaves(r[COL.chaves]),
+      'TIPOLOGIA': String(r[COL.tipologia]||'').trim(),
+      'AREA': String(r[COL.area]||'').trim(),
+      'CATUSO': String(r[COL.catuso]||'').trim(),
+      '_raw': r
+    };
+  }).filter(r=>r && (r['UNIDADE']||r['NOME']));
+
   g('syncIcon').textContent='✅';
   g('syncTitle').textContent='Base carregada — '+csvData.length+' registros';
   g('syncSub').textContent='Atualizado agora · Google Sheets ao vivo';
@@ -520,17 +546,15 @@ function processData(rows){
       .forEach(v=>{const o=document.createElement('option');o.value=v;o.text=v;sel.appendChild(o);});
   };
   fill('filtroEmp','EMPREENDIMENTO');
-  fill('filtroFase','FASE');
-  fill('filtroStatus','STATUS');
 
   const sortedUnits=[...csvData].sort((a,b)=>{
     const ea=a['EMPREENDIMENTO']||'',eb=b['EMPREENDIMENTO']||'';
     if(ea!==eb) return ea.localeCompare(eb,'pt-BR');
-    return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'','pt-BR');
+    return (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR');
   });
   window._csItems=[];
   sortedUnits.forEach((r,i)=>{
-    const lbl=[r['EMPREENDIMENTO'],r['CHAVE PRODUTO'],r['COMPRADOR 1']].filter(Boolean).join(' · ');
+    const lbl=[r['EMPREENDIMENTO'],r['UNIDADE'],r['NOME']].filter(Boolean).join(' · ');
     window._csItems.push({idx:i,label:lbl});
   });
   renderCSList('');
@@ -538,16 +562,26 @@ function processData(rows){
   g('csInput').placeholder='Buscar por unidade, empreendimento ou cliente…';
 }
 
+function formatChaves(v){
+  if(v===null||v===undefined||String(v).trim()==='') return 'CHAVES COM MC';
+  // Try to format as date
+  const d = new Date(v);
+  if(!isNaN(d.getTime()) && String(v).length > 6){
+    return d.toLocaleDateString('pt-BR');
+  }
+  return String(v).trim();
+}
+
 function selecionarUnidade(idx){
   if(idx===''||idx===null||idx===undefined||!csvData.length) return;
   const sorted=[...csvData].sort((a,b)=>{
     const ea=a['EMPREENDIMENTO']||'',eb=b['EMPREENDIMENTO']||'';
     if(ea!==eb) return ea.localeCompare(eb,'pt-BR');
-    return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'','pt-BR');
+    return (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR');
   });
   const row=sorted[parseInt(idx)];
   if(!row) return;
-  const lbl=[row['EMPREENDIMENTO'],row['CHAVE PRODUTO'],row['COMPRADOR 1']].filter(Boolean).join(' \u00b7 ');
+  const lbl=[row['EMPREENDIMENTO'],row['UNIDADE'],row['NOME']].filter(Boolean).join(' \u00b7 ');
   g('csInput').value=lbl;
   closeCS();
   preencherDados(row);
@@ -556,52 +590,26 @@ function selecionarUnidade(idx){
 function buscarPorNome(){
   const q = g('nomeCliente').value.toUpperCase().trim();
   if(q.length < 3 || !csvData.length) return;
-  const match = csvData.find(r=>r['COMPRADOR 1']?.toUpperCase().includes(q));
+  const match = csvData.find(r=>r['NOME']?.toUpperCase().includes(q));
   if(match) preencherDados(match);
 }
 
 function buscarPorUnidade(){
   const q = g('unidade').value.toUpperCase().trim();
   if(q.length < 3 || !csvData.length) return;
-  const match = csvData.find(r=>r['CHAVE PRODUTO']?.toUpperCase().includes(q));
+  const match = csvData.find(r=>r['UNIDADE']?.toUpperCase().includes(q));
   if(match) preencherDados(match);
 }
 
 function preencherDados(row){
-  g('nomeCliente').value = row['COMPRADOR 1']||'';
-  g('unidade').value = row['CHAVE PRODUTO']||'';
+  g('nomeCliente').value = row['NOME']||'';
+  g('unidade').value = row['UNIDADE']||'';
   g('empreendimento').value = row['EMPREENDIMENTO']||'';
-  g('tipologia').value = [row['TIPOLOGIA'],row['CAT USO']].filter(Boolean).join(' — ');
-  g('area').value = row['METRAGEM']||'';
+  g('tipologia').value = [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' — ');
+  g('area').value = row['AREA']||'';
+  g('chavesInfo').value = row['CHAVES']||'CHAVES COM MC';
 
-  const vgv = parseFloat(row['VGV'])||0;
-  g('valorVenda').value = fmt(vgv);
-
-  const item5 = g('item5');
-  if(item5){
-    const saldo = parseFloat(String(row['VLR SALDO DEVEDOR METROCASA']||'0').replace('R$','').replace(/\./g,'').replace(',','.'))||0;
-    item5.value = fmt(saldo);
-    ITEMS[4]._manual = saldo;
-  }
-  const item10 = g('item10');
-  if(item10){
-    const inad = parseFloat(String(row['TOTAL INADIMPLÊNCIA CAIXA']||'0').replace(/\./g,'').replace(',','.'))||0;
-    item10.value = fmt(inad);
-    ITEMS[9]._manual = inad;
-  }
-
-  // sync dropdown if triggered from text
-  const uSel = g('unidadeSelect');
-  if(uSel && uSel.options.length > 1){
-    const sorted = [...csvData].sort((a,b)=>{
-      const ea=a['EMPREENDIMENTO']||''; const eb=b['EMPREENDIMENTO']||'';
-      if(ea!==eb) return ea.localeCompare(eb);
-      return (a['CHAVE PRODUTO']||'').localeCompare(b['CHAVE PRODUTO']||'');
-    });
-    const idx = sorted.findIndex(r=>r['CHAVE PRODUTO']===row['CHAVE PRODUTO']&&r['COMPRADOR 1']===row['COMPRADOR 1']);
-    if(idx>-1) uSel.value = idx;
-  }
-  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · ${row['FASE']||''} · ${row['STATUS']||''}</div>`;
+  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'}</div>`;
   calcular();
 }
 
@@ -622,13 +630,9 @@ function processarLote(){
   }
   const cfg = getConfig();
   const empF = g('filtroEmp').value;
-  const faseF = g('filtroFase').value;
-  const statF = g('filtroStatus').value;
 
   let filtered = csvData.filter(r=>parseFloat(r['VGV'])>0);
   if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
-  if(faseF) filtered = filtered.filter(r=>r['FASE']===faseF);
-  if(statF) filtered = filtered.filter(r=>r['STATUS']===statF);
 
   loteResults = filtered.map(row=>{
     const vv = parseFloat(row['VGV'])||0;
@@ -643,8 +647,8 @@ function processarLote(){
 
   const rows = loteResults.map(r=>`
     <tr>
-      <td>${r['COMPRADOR 1']||'—'}</td>
-      <td>${r['CHAVE PRODUTO']||'—'}</td>
+      <td>${r['NOME']||'—'}</td>
+      <td>${r['UNIDADE']||'—'}</td>
       <td>${r['EMPREENDIMENTO']||'—'}</td>
       <td style="text-align:right">R$ ${fmt(r._vv)}</td>
       <td style="text-align:right">R$ ${fmt(r._saldo)}</td>
@@ -678,7 +682,7 @@ function exportarCSV(){
   if(!loteResults.length){alert('Execute o processamento de lote primeiro.');return;}
   const header = ['Cliente','Unidade','Empreendimento','VGV','Saldo CEF','Inadimplência','Resultado','Viável'];
   const rows = loteResults.map(r=>[
-    r['COMPRADOR 1'],r['CHAVE PRODUTO'],r['EMPREENDIMENTO'],
+    r['NOME'],r['UNIDADE'],r['EMPREENDIMENTO'],
     r._vv.toFixed(2),r._saldo.toFixed(2),r._inad.toFixed(2),
     r._resultado.toFixed(2),r._viavel?'SIM':'NÃO'
   ]);
