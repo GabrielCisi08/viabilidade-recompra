@@ -301,9 +301,13 @@ input[type=file]{display:none}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Processar lote
           </button>
-          <button onclick="exportarCSV()">
+          <button onclick="exportarLotePDF()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF detalhado
+          </button>
+          <button onclick="exportarLoteExcel()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Exportar CSV
+            Excel detalhado
           </button>
         </div>
       </div>
@@ -530,7 +534,7 @@ function processData(raw){
   // raw = array de arrays (primeira linha = cabeçalho)
   // Mapeamento por coluna: D=3 nome, R=17 unidade, S=18 empreendimento,
   // T=19 data chaves, AF=31 tipologia, AG=32 área, AH=33 cat uso
-  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13};
+  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13, emp:33};
   const body = Array.isArray(raw[0]) ? raw.slice(1) : raw;
 
   csvData = body.map(r=>{
@@ -538,7 +542,7 @@ function processData(raw){
     return {
       'NOME': String(r[COL.nome]||'').trim(),
       'UNIDADE': String(r[COL.unidade]||'').trim(),
-      'EMPREENDIMENTO': '',
+      'EMPREENDIMENTO': String(r[COL.emp]||'').trim(),
       'CHAVES': formatChaves(r[COL.chaves]),
       'TIPOLOGIA': String(r[COL.tipologia]||'').trim(),
       'AREA': String(r[COL.area]||'').trim(),
@@ -655,7 +659,7 @@ function preencherDados(row){
   // 2ª passada: calc (depende de outros itens já preenchidos)
   aplicarCalc();
 
-  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · Unidade: ${row['UNIDADE']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Saldo Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
+  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Unidade: ${row['UNIDADE']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Saldo Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
   calcular();
 }
 
@@ -679,6 +683,33 @@ function calcularResultado(vv, saldoCEF, inadCaixa, cfg){
   const itbiRev = Math.min(vv,120968)*cfg.itbiRevendaRate + vv*cfg.itbiDifRate;
   return vv - ret + retC - comissao - saldoCEF - cfg.emolRecompra - itbiR - cfg.emolFiduciaria1
          - inadCaixa - cfg.avaliacao - cfg.tccav - itbiRev - cfg.emolFiduciaria2;
+}
+
+function calcularItensRow(row){
+  // Retorna {items:[{id,desc,valor,sinal}], total} para uma linha da base
+  const raw = row['_raw']||[];
+  const vv = row['VALOR_VENDA']||0;
+  const vals = {};
+  // 1ª passada
+  ITEMS.forEach(it=>{
+    let v = 0;
+    if(it.tipo==='col' && it.col!==null) v = Math.abs(parseNum(raw[it.col]));
+    else if(it.tipo==='pct') v = vv*(it.pct/100);
+    else if(it.tipo==='fixo') v = it.fixo;
+    vals[it.id] = v;
+  });
+  // 2ª passada: calc
+  ITEMS.forEach(it=>{
+    if(it.tipo==='calc'){
+      vals[it.id] = Math.abs(vals[it.base]||0)*(it.pct/100);
+    }
+  });
+  let total = 0;
+  const items = ITEMS.map(it=>{
+    total += it.sinal===1 ? vals[it.id] : -vals[it.id];
+    return {id:it.id, desc:it.desc, valor:vals[it.id], sinal:it.sinal};
+  });
+  return {items, total};
 }
 
 function processarLote(){
@@ -887,6 +918,149 @@ renderItems();
 calcular();
 // Auto-load sheet data on startup
 loadFromSheet();
+
+
+// ── Exportação detalhada do lote (PDF paisagem + Excel) ──────────────────────
+function getLoteFiltrado(){
+  if(!csvData.length) return [];
+  const empF = g('filtroEmp') ? g('filtroEmp').value : '';
+  let filtered = csvData.filter(r=>(r['VALOR_VENDA']>0)||(r['SALDO_VIAB']!==0));
+  if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
+  return filtered;
+}
+
+function exportarLotePDF(){
+  const filtered = getLoteFiltrado();
+  if(!filtered.length){ alert('Nenhuma unidade no filtro atual. Processe o lote primeiro.'); return; }
+
+  // Cabeçalhos curtos para as 16 colunas
+  const shortHeaders = ITEMS.map(it=>'Item '+it.id);
+  const dataRows = filtered.map(row=>{
+    const calc = calcularItensRow(row);
+    return {
+      unidade: row['UNIDADE']||'',
+      nome: row['NOME']||'',
+      chaves: row['CHAVES']||'',
+      itens: calc.items.map(i=>i.valor),
+      total: calc.total
+    };
+  });
+
+  // Legenda dos itens
+  const legenda = ITEMS.map(it=>`<div style="font-size:8px;line-height:1.3"><b>Item ${it.id}:</b> ${it.desc}</div>`).join('');
+
+  const headCols = shortHeaders.map(hd=>`<th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#185FA5;color:#fff;text-align:right;white-space:nowrap">${hd}</th>`).join('');
+  const bodyRows = dataRows.map(r=>{
+    const itemCells = r.itens.map((v,idx)=>{
+      const sinal = ITEMS[idx].sinal;
+      const color = sinal===1 ? '#1a7d1a' : '#a32d2d';
+      return `<td style="padding:2px 4px;font-size:8px;border:0.5px solid #ddd;text-align:right;color:${v===0?'#999':color}">${v===0?'—':fmt(v)}</td>`;
+    }).join('');
+    const tColor = r.total>=0 ? '#1a7d1a' : '#a32d2d';
+    return `<tr>
+      <td style="padding:2px 4px;font-size:8px;border:0.5px solid #ddd;font-weight:600;white-space:nowrap">${r.unidade}</td>
+      <td style="padding:2px 4px;font-size:8px;border:0.5px solid #ddd;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.nome}</td>
+      ${itemCells}
+      <td style="padding:2px 4px;font-size:8px;border:0.5px solid #ddd;text-align:right;font-weight:700;color:${tColor}">${fmt(r.total)}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Viabilidade em Lote — Detalhado</title>
+<style>
+  @page{size:A4 landscape;margin:10mm}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;padding:12px;color:#1a1a18}
+  h1{font-size:14px;margin-bottom:2px}
+  .sub{font-size:10px;color:#666;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{position:sticky;top:0}
+  .legenda{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;border-top:1px solid #ccc;padding-top:8px}
+  .legenda-title{font-size:10px;font-weight:700;margin-bottom:6px;grid-column:1/-1}
+</style></head><body>
+<h1>Análise de Viabilidade de Recompra — Lote Detalhado</h1>
+<div class="sub">Metrocasa Construtora · ${filtered.length} unidades · ${new Date().toLocaleDateString('pt-BR')}</div>
+<table>
+  <thead><tr>
+    <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#185FA5;color:#fff;text-align:left">Unidade</th>
+    <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#185FA5;color:#fff;text-align:left">Cliente</th>
+    ${headCols}
+    <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#0c447c;color:#fff;text-align:right">SALDO</th>
+  </tr></thead>
+  <tbody>${bodyRows}</tbody>
+</table>
+<div class="legenda">
+  <div class="legenda-title">Legenda dos itens</div>
+  ${legenda}
+</div>
+<script>window.onload=()=>window.print()<\/script>
+</body></html>`;
+
+  const blob = new Blob([html],{type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='viabilidade_lote_detalhado_'+new Date().toISOString().split('T')[0]+'.html';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function exportarLoteExcel(){
+  const filtered = getLoteFiltrado();
+  if(!filtered.length){ alert('Nenhuma unidade no filtro atual. Processe o lote primeiro.'); return; }
+
+  // Gera SpreadsheetML (XML nativo do Excel) — abre com colunas separadas e formatação, sem biblioteca
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // Cabeçalhos
+  const headers = ['Unidade','Cliente','Chaves', ...ITEMS.map(it=>it.desc), 'SALDO / RESULTADO'];
+  const headerCells = headers.map(hd=>
+    `<Cell ss:StyleID="hdr"><Data ss:Type="String">${esc(hd)}</Data></Cell>`
+  ).join('');
+
+  // Linhas de dados
+  const dataRows = filtered.map(row=>{
+    const calc = calcularItensRow(row);
+    const txtCells = [row['UNIDADE']||'', row['NOME']||'', row['CHAVES']||''].map(v=>
+      `<Cell><Data ss:Type="String">${esc(v)}</Data></Cell>`
+    ).join('');
+    const numCells = calc.items.map(i=>{
+      const v = i.sinal===1 ? i.valor : -i.valor;
+      return `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.toFixed(2)}</Data></Cell>`;
+    }).join('');
+    const totalStyle = calc.total>=0 ? 'totalPos' : 'totalNeg';
+    const totalCell = `<Cell ss:StyleID="${totalStyle}"><Data ss:Type="Number">${calc.total.toFixed(2)}</Data></Cell>`;
+    return `<Row>${txtCells}${numCells}${totalCell}</Row>`;
+  }).join('');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+  <Style ss:ID="Default"><Font ss:FontName="Calibri" ss:Size="10"/></Style>
+  <Style ss:ID="hdr"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="9"/><Interior ss:Color="#185FA5" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
+  <Style ss:ID="num"><NumberFormat ss:Format="#,##0.00"/></Style>
+  <Style ss:ID="totalPos"><Font ss:Bold="1" ss:Color="#1A7D1A"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#EAF3DE" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="totalNeg"><Font ss:Bold="1" ss:Color="#A32D2D"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#FCEBEB" ss:Pattern="Solid"/></Style>
+</Styles>
+<Worksheet ss:Name="Viabilidade Lote">
+<Table>
+  <Row ss:Height="42">${headerCells}</Row>
+  ${dataRows}
+</Table>
+<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+  <FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane>
+</WorksheetOptions>
+</Worksheet>
+</Workbook>`;
+
+  const blob = new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='viabilidade_lote_detalhado_'+new Date().toISOString().split('T')[0]+'.xls';
+  a.click(); URL.revokeObjectURL(url);
+}
 
 // ── Custom searchable select ─────────────────────────────────────────────────
 window._csItems = [];
