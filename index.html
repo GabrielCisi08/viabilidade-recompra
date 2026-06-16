@@ -374,22 +374,22 @@ let csvData = [];
 let loteResults = [];
 
 const ITEMS = [
-  {id:1,  col:82,  desc:"(+) Recebimento previsto pelo(a) novo(a) cliente e CEF",                                              sinal:1,  tipo:'col'},
-  {id:2,  col:101, desc:"(-) Recolhimento dos impostos sobre a receita — RET — Regime Especial de Tributação",               sinal:-1, tipo:'col'},
-  {id:3,  col:112, desc:"(+) Crédito para dedução da base de cálculo — RET — Regime Especial de Tributação",                 sinal:1,  tipo:'col'},
+  {id:1,  col:9,   desc:"(+) Recebimento previsto pelo(a) novo(a) cliente e CEF",                                              sinal:1,  tipo:'col'},
+  {id:2,  col:null,desc:"(-) Recolhimento dos impostos sobre a receita — RET — Regime Especial de Tributação",               sinal:-1, tipo:'calc', base:1, pct:4},
+  {id:3,  col:null,desc:"(+) Crédito para dedução da base de cálculo — RET — Regime Especial de Tributação",                 sinal:1,  tipo:'calc', base:5, pct:4},
   {id:4,  col:null,desc:"(-) Remunerações pagas — Cadeia de vendas, Crédito Imobiliário, Repasse, CCA — Primeira Venda (Estimativa 5%)", sinal:-1, tipo:'pct', pct:5},
-  {id:5,  col:104, desc:"(-) Liquidação do saldo devedor junto à CEF",                                                        sinal:-1, tipo:'col'},
-  {id:6,  col:105, desc:"(-) Emolumentos cartorários para escrituração — Recompra",                                           sinal:-1, tipo:'col'},
-  {id:7,  col:106, desc:"(-) ITBI — Recompra",                                                                                 sinal:-1, tipo:'col'},
-  {id:8,  col:107, desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Recompra",                        sinal:-1, tipo:'col'},
-  {id:9,  col:108, desc:"(-) IPTU, quando não isento",                                                                        sinal:-1, tipo:'col'},
-  {id:10, col:109, desc:"(-) Cota condominial em atraso + Acrescer 02 Cotas até a Entrega",                                   sinal:-1, tipo:'col'},
-  {id:11, col:110, desc:"(-) Tarifa Avaliação de Bens Recebidos em Garantia — Unidade em Construção ou Concluída",            sinal:-1, tipo:'col'},
+  {id:5,  col:19,  desc:"(-) Liquidação do saldo devedor junto à CEF",                                                        sinal:-1, tipo:'col'},
+  {id:6,  col:20,  desc:"(-) Emolumentos cartorários para escrituração — Recompra",                                           sinal:-1, tipo:'col'},
+  {id:7,  col:21,  desc:"(-) ITBI — Recompra",                                                                                 sinal:-1, tipo:'col'},
+  {id:8,  col:22,  desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Recompra",                        sinal:-1, tipo:'col'},
+  {id:9,  col:23,  desc:"(-) IPTU, quando não isento",                                                                        sinal:-1, tipo:'col'},
+  {id:10, col:24,  desc:"(-) Cota condominial em atraso + Acrescer 02 Cotas até a Entrega",                                   sinal:-1, tipo:'col'},
+  {id:11, col:25,  desc:"(-) Tarifa Avaliação de Bens Recebidos em Garantia — Unidade em Construção ou Concluída",            sinal:-1, tipo:'col'},
   {id:12, col:null,desc:"(-) TCCAV — Tarifa de Cobertura de Custos à Vista — Contrato de PF — Pessoa Física",                 sinal:-1, tipo:'fixo', fixo:300},
-  {id:13, col:113, desc:"(-) ITBI — Revenda (Teto R$ 120.968,00 x 0,50% + Dif. CV x 3%)",                                    sinal:-1, tipo:'col'},
-  {id:14, col:114, desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Revenda",                        sinal:-1, tipo:'col'},
-  {id:15, col:119, desc:"(-) Reparos de unidade",                                                                             sinal:-1, tipo:'col'},
-  {id:16, col:103, desc:"(-) Restituição parcial ou total dos valores pagos c/ recursos próprios pelo(a) cliente",            sinal:-1, tipo:'col'},
+  {id:13, col:28,  desc:"(-) ITBI — Revenda (Teto R$ 120.968,00 x 0,50% + Dif. CV x 3%)",                                    sinal:-1, tipo:'col'},
+  {id:14, col:29,  desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Revenda",                        sinal:-1, tipo:'col'},
+  {id:15, col:null,desc:"(-) Reparos de unidade",                                                                             sinal:-1, tipo:'fixo', fixo:0},
+  {id:16, col:18,  desc:"(-) Restituição parcial ou total dos valores pagos c/ recursos próprios pelo(a) cliente",            sinal:-1, tipo:'col'},
 ];
 
 function g(id){return document.getElementById(id)}
@@ -432,11 +432,12 @@ function renderItems(){
 }
 
 function manualChange(id, val){
+  // Se editou um item que é base de algum calc, recalcula os dependentes
+  aplicarCalc();
   calcular();
 }
 
 function onValorVendaChange(){
-  // Recalcula itens do tipo % e atualiza item 1 (recebimento = valor de venda)
   const vv = parseBR(g('valorVenda').value||'0');
   ITEMS.forEach(it=>{
     const el = g('item'+it.id);
@@ -444,6 +445,7 @@ function onValorVendaChange(){
     if(it.id === 1){ el.value = fmt(vv); }
     else if(it.tipo === 'pct'){ el.value = fmt(vv * (it.pct/100)); }
   });
+  aplicarCalc();
   calcular();
 }
 
@@ -479,7 +481,7 @@ function calcular(){
 }
 
 function loadFromSheet(){
-  const url = 'https://script.google.com/macros/s/AKfycbwJtA7tK3nWsxiKvXfsvd8Uwb72brBTSnpDHb2aIA-EBKywN_D4flhwItMk0DPFtxx2/exec';
+  const url = 'https://script.google.com/macros/s/AKfycbx8kTGGSNXmDAEef_YGyv4k0gczthSxBvMRTYdz4fEUB7vqhrzlPXEgAcPMnLO7f3hy-Q/exec';
   g('syncIcon').textContent='⏳';
   g('syncTitle').textContent='Carregando base de dados…';
   g('syncSub').textContent='Conectando ao Google Sheets';
@@ -498,7 +500,7 @@ function processData(raw){
   // raw = array de arrays (primeira linha = cabeçalho)
   // Mapeamento por coluna: D=3 nome, R=17 unidade, S=18 empreendimento,
   // T=19 data chaves, AF=31 tipologia, AG=32 área, AH=33 cat uso
-  const COL = {nome:3, unidade:17, emp:18, chaves:19, tipologia:31, area:32, catuso:33, valorVenda:82, receita:96, vendaAnterior:97, saldoViab:98};
+  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13};
   const body = Array.isArray(raw[0]) ? raw.slice(1) : raw;
 
   csvData = body.map(r=>{
@@ -506,7 +508,7 @@ function processData(raw){
     return {
       'NOME': String(r[COL.nome]||'').trim(),
       'UNIDADE': String(r[COL.unidade]||'').trim(),
-      'EMPREENDIMENTO': String(r[COL.emp]||'').trim(),
+      'EMPREENDIMENTO': '',
       'CHAVES': formatChaves(r[COL.chaves]),
       'TIPOLOGIA': String(r[COL.tipologia]||'').trim(),
       'AREA': String(r[COL.area]||'').trim(),
@@ -602,12 +604,11 @@ function preencherDados(row){
   g('area').value = row['AREA']||'';
   g('chavesInfo').value = row['CHAVES']||'CHAVES COM MC';
 
-  // Valor de venda atual = Projeção de Venda (coluna CE)
   const valorVenda = row['VALOR_VENDA']||0;
   if(g('valorVenda')) g('valorVenda').value = fmt(valorVenda);
 
-  // Preenche cada item conforme o tipo (coluna da Sheet, % sobre venda, ou fixo)
   const raw = row['_raw']||[];
+  // 1ª passada: col, pct e fixo
   ITEMS.forEach(it=>{
     const el = g('item'+it.id);
     if(!el) return;
@@ -619,11 +620,25 @@ function preencherDados(row){
     } else if(it.tipo === 'fixo'){
       val = it.fixo;
     }
-    el.value = fmt(val);
+    if(it.tipo !== 'calc') el.value = fmt(val);
   });
+  // 2ª passada: calc (depende de outros itens já preenchidos)
+  aplicarCalc();
 
-  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Saldo Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
+  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · Unidade: ${row['UNIDADE']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Saldo Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
   calcular();
+}
+
+function aplicarCalc(){
+  // Calcula itens do tipo 'calc' (% sobre o valor de outro item)
+  ITEMS.forEach(it=>{
+    if(it.tipo !== 'calc') return;
+    const el = g('item'+it.id);
+    const baseEl = g('item'+it.base);
+    if(!el || !baseEl) return;
+    const baseVal = parseBR(baseEl.value);
+    el.value = fmt(Math.abs(baseVal) * (it.pct/100));
+  });
 }
 
 function calcularResultado(vv, saldoCEF, inadCaixa, cfg){
