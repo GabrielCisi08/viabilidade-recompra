@@ -282,7 +282,11 @@ input[type=file]{display:none}
 
       <div class="card">
         <div class="card-title">Filtros</div>
-        <div class="form-grid">
+        <div class="form-grid three">
+          <div class="field">
+            <label>Base</label>
+            <select id="filtroBase"><option value="">Todas</option></select>
+          </div>
           <div class="field">
             <label>Empreendimento</label>
             <select id="filtroEmp"><option value="">Todos</option></select>
@@ -291,7 +295,6 @@ input[type=file]{display:none}
             <label>Fase</label>
             <select id="filtroFase"><option value="">Todas</option></select>
           </div>
-
         </div>
         <div class="btn-row">
           <button class="primary" onclick="processarLote()">
@@ -531,7 +534,7 @@ function processData(raw){
   // raw = array de arrays (primeira linha = cabeçalho)
   // Mapeamento por coluna: D=3 nome, R=17 unidade, S=18 empreendimento,
   // T=19 data chaves, AF=31 tipologia, AG=32 área, AH=33 cat uso
-  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13, emp:33, fase:2};
+  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13, emp:33, fase:2, base:0};
   const body = Array.isArray(raw[0]) ? raw.slice(1) : raw;
 
   csvData = body.map(r=>{
@@ -541,6 +544,7 @@ function processData(raw){
       'UNIDADE': String(r[COL.unidade]||'').trim(),
       'EMPREENDIMENTO': String(r[COL.emp]||'').trim(),
       'FASE': String(r[COL.fase]||'').trim(),
+      'BASE': String(r[COL.base]||'').trim(),
       'CHAVES': formatChaves(r[COL.chaves]),
       'TIPOLOGIA': String(r[COL.tipologia]||'').trim(),
       'AREA': String(r[COL.area]||'').trim(),
@@ -564,6 +568,7 @@ function processData(raw){
     [...new Set(csvData.map(r=>r[field]).filter(Boolean))].sort()
       .forEach(v=>{const o=document.createElement('option');o.value=v;o.text=v;sel.appendChild(o);});
   };
+  fill('filtroBase','BASE');
   fill('filtroEmp','EMPREENDIMENTO');
   fill('filtroFase','FASE');
 
@@ -717,10 +722,12 @@ function processarLote(){
     return;
   }
   const cfg = getConfig();
+  const baseF = g('filtroBase') ? g('filtroBase').value : '';
   const empF = g('filtroEmp').value;
   const faseF = g('filtroFase') ? g('filtroFase').value : '';
 
   let filtered = csvData.filter(r=>r['RECEITA']>0 || r['SALDO_VIAB']!==0);
+  if(baseF) filtered = filtered.filter(r=>r['BASE']===baseF);
   if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
   if(faseF) filtered = filtered.filter(r=>r['FASE']===faseF);
 
@@ -924,9 +931,11 @@ loadFromSheet();
 // ── Exportação detalhada do lote (PDF paisagem + Excel) ──────────────────────
 function getLoteFiltrado(){
   if(!csvData.length) return [];
+  const baseF = g('filtroBase') ? g('filtroBase').value : '';
   const empF = g('filtroEmp') ? g('filtroEmp').value : '';
   const faseF = g('filtroFase') ? g('filtroFase').value : '';
   let filtered = csvData.filter(r=>(r['VALOR_VENDA']>0)||(r['SALDO_VIAB']!==0));
+  if(baseF) filtered = filtered.filter(r=>r['BASE']===baseF);
   if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
   if(faseF) filtered = filtered.filter(r=>r['FASE']===faseF);
   return filtered;
