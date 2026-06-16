@@ -1239,21 +1239,24 @@ function exportarLotePDF(){
     <div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.05em;font-weight:600">Total</div>
     <div style="font-size:17px;font-weight:700;color:#1a1a18;margin-top:1px">${filtered.length}</div>
   </div>
-  <div style="flex:1;padding:8px 12px;text-align:center;border-right:1px solid #eee;background:#f3f9ee">
+  <div style="flex:1;padding:9px 12px;text-align:center;border-right:1px solid #f0eaea;background:#f3f9ee">
     <div style="font-size:9px;color:#1a7d1a;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Viável</div>
-    <div style="font-size:16px;font-weight:700;color:#1a7d1a">${cViavel} <span style="font-size:10px;font-weight:400">(${(cViavel/totalClass*100).toFixed(0)}%)</span></div>
+    <div style="font-size:17px;font-weight:700;color:#1a7d1a;margin-top:1px">${cViavel}</div>
+    <div style="font-size:10px;font-weight:500;color:#1a7d1a">${(cViavel/totalClass*100).toFixed(0)}%</div>
   </div>
-  <div style="flex:1;padding:8px 12px;text-align:center;border-right:1px solid #eee;background:#fdf6ea">
+  <div style="flex:1;padding:9px 12px;text-align:center;border-right:1px solid #f0eaea;background:#fdf6ea">
     <div style="font-size:9px;color:#ba7517;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Atenção</div>
-    <div style="font-size:16px;font-weight:700;color:#ba7517">${cAtencao} <span style="font-size:10px;font-weight:400">(${(cAtencao/totalClass*100).toFixed(0)}%)</span></div>
+    <div style="font-size:17px;font-weight:700;color:#ba7517;margin-top:1px">${cAtencao}</div>
+    <div style="font-size:10px;font-weight:500;color:#ba7517">${(cAtencao/totalClass*100).toFixed(0)}%</div>
   </div>
-  <div style="flex:1;padding:8px 12px;text-align:center;border-right:1px solid #eee;background:#fcefef">
+  <div style="flex:1;padding:9px 12px;text-align:center;border-right:1px solid #f0eaea;background:#fcefef">
     <div style="font-size:9px;color:#a32d2d;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Inviável</div>
-    <div style="font-size:16px;font-weight:700;color:#a32d2d">${cInviavel} <span style="font-size:10px;font-weight:400">(${(cInviavel/totalClass*100).toFixed(0)}%)</span></div>
+    <div style="font-size:17px;font-weight:700;color:#a32d2d;margin-top:1px">${cInviavel}</div>
+    <div style="font-size:10px;font-weight:500;color:#a32d2d">${(cInviavel/totalClass*100).toFixed(0)}%</div>
   </div>
-  <div style="flex:1.4;padding:8px 12px;text-align:center">
-    <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:.04em">Lucro total</div>
-    <div style="font-size:16px;font-weight:700;color:${lucroTotal>=0?'#1a7d1a':'#a32d2d'}">R$ ${fmt(lucroTotal)}</div>
+  <div style="flex:1.4;padding:9px 12px;text-align:center">
+    <div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.05em;font-weight:600">Lucro total</div>
+    <div style="font-size:15px;font-weight:700;color:${lucroTotal>=0?'#1a7d1a':'#a32d2d'};margin-top:1px;white-space:nowrap">R$ ${fmt(lucroTotal)}</div>
   </div>
 </div>
   </div>
