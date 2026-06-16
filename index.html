@@ -146,6 +146,10 @@ input[type=file]{display:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         Análise em Lote
       </button>
+      <button class="nav-item" onclick="showPage('criterios',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Critérios
+      </button>
       
     </nav>
     <div class="sidebar-footer">
@@ -314,6 +318,10 @@ input[type=file]{display:none}
             </div>
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0 14px">
+          <input type="checkbox" id="apenasViaveis" style="width:16px;height:16px;cursor:pointer">
+          <label for="apenasViaveis" style="font-size:13px;color:var(--text);cursor:pointer">Considerar apenas unidades viáveis (lucro positivo)</label>
+        </div>
         <div class="btn-row">
           <button class="primary" onclick="processarLote()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -332,6 +340,50 @@ input[type=file]{display:none}
 
       <div id="loteResult"></div>
     </div>
+
+    <!-- CRITÉRIOS -->
+    <div id="page-criterios" class="page">
+      <div class="page-header">
+        <h2>Critérios de Viabilidade</h2>
+        <p>Defina os limites que classificam cada unidade como viável, em alerta ou inviável</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Limites de classificação</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Lucro mínimo para aprovação (R$)</label>
+            <input type="number" id="critMin" value="0" step="500" oninput="salvarCriterios()">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Abaixo deste valor a unidade é classificada como <b style="color:var(--red)">Inviável</b></div>
+          </div>
+          <div class="field">
+            <label>Lucro de alerta (R$)</label>
+            <input type="number" id="critAlert" value="20000" step="1000" oninput="salvarCriterios()">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Entre o mínimo e este valor: <b style="color:var(--amber)">Viável com atenção</b>. Acima: <b style="color:var(--green)">Aprovado</b></div>
+          </div>
+        </div>
+        <div id="critMsg" style="margin-top:12px;font-size:13px;color:var(--green)"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Resumo das faixas</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--red-light);border-radius:var(--radius)">
+            <span class="badge fail">✗ Inviável</span>
+            <span style="font-size:13px;color:var(--text)">Lucro abaixo de <b id="resMin">R$ 0,00</b></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--amber-light);border-radius:var(--radius)">
+            <span class="badge warn">⚠ Atenção</span>
+            <span style="font-size:13px;color:var(--text)">Entre <b id="resMin2">R$ 0,00</b> e <b id="resAlert">R$ 20.000,00</b></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--green-light);border-radius:var(--radius)">
+            <span class="badge ok">✓ Aprovado</span>
+            <span style="font-size:13px;color:var(--text)">Lucro acima de <b id="resAlert2">R$ 20.000,00</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
 
     
   </main>
@@ -370,9 +422,28 @@ function parseBR(s){
   return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0;
 }
 
+function salvarCriterios(){
+  const cfg = getConfig();
+  // Atualiza o resumo de faixas
+  if(g('resMin')) g('resMin').textContent = 'R$ '+fmt(cfg.thMin);
+  if(g('resMin2')) g('resMin2').textContent = 'R$ '+fmt(cfg.thMin);
+  if(g('resAlert')) g('resAlert').textContent = 'R$ '+fmt(cfg.thAlert);
+  if(g('resAlert2')) g('resAlert2').textContent = 'R$ '+fmt(cfg.thAlert);
+  if(g('critMsg')){
+    g('critMsg').textContent = '✓ Critérios atualizados';
+    setTimeout(()=>{ if(g('critMsg')) g('critMsg').textContent=''; }, 2000);
+  }
+  // Recalcula a viabilidade individual aberta
+  calcular();
+}
+
 function getConfig(){
-  // Critério: lucro >= 0 é viável; abaixo de 20.000 mostra alerta
-  return { thMin: 0, thAlert: 20000 };
+  const min = parseFloat(g('critMin')?.value);
+  const alert = parseFloat(g('critAlert')?.value);
+  return {
+    thMin: isNaN(min) ? 0 : min,
+    thAlert: isNaN(alert) ? 20000 : alert
+  };
 }
 
 function renderItems(){
@@ -672,14 +743,7 @@ function processarLote(){
     return;
   }
   const cfg = getConfig();
-  const baseSel = getMSSelected('Base');
-  const empSel = getMSSelected('Emp');
-  const faseSel = getMSSelected('Fase');
-
-  let filtered = csvData.filter(r=>r['RECEITA']>0 || r['SALDO_VIAB']!==0);
-  if(baseSel.size) filtered = filtered.filter(r=>baseSel.has(r['BASE']));
-  if(empSel.size) filtered = filtered.filter(r=>empSel.has(r['EMPREENDIMENTO']));
-  if(faseSel.size) filtered = filtered.filter(r=>faseSel.has(r['FASE']));
+  let filtered = getLoteFiltrado();
 
   loteResults = filtered.map(row=>{
     const resultado = row['SALDO_VIAB']||0;
@@ -863,6 +927,7 @@ function showPage(name, btn){
 g('dataAnalise').value = new Date().toISOString().split('T')[0];
 renderItems();
 calcular();
+salvarCriterios();
 // Auto-load sheet data on startup
 loadFromSheet();
 
@@ -952,10 +1017,13 @@ function getLoteFiltrado(){
   const baseSel = getMSSelected('Base');
   const empSel = getMSSelected('Emp');
   const faseSel = getMSSelected('Fase');
+  const soViaveis = g('apenasViaveis') && g('apenasViaveis').checked;
+  const cfg = getConfig();
   let filtered = csvData.filter(r=>(r['VALOR_VENDA']>0)||(r['SALDO_VIAB']!==0));
   if(baseSel.size) filtered = filtered.filter(r=>baseSel.has(r['BASE']));
   if(empSel.size) filtered = filtered.filter(r=>empSel.has(r['EMPREENDIMENTO']));
   if(faseSel.size) filtered = filtered.filter(r=>faseSel.has(r['FASE']));
+  if(soViaveis) filtered = filtered.filter(r=>calcularItensRow(r).total >= cfg.thMin);
   return filtered;
 }
 
