@@ -240,7 +240,7 @@ input[type=file]{display:none}
         <div class="form-grid">
           <div class="field">
             <label>Valor de venda atual (R$)</label>
-            <input type="text" id="valorVenda" placeholder="0,00" oninput="onValorVendaChange()">
+            <input type="text" id="valorVenda" placeholder="0,00" oninput="onValorVendaChange()" onkeydown="enterBlur(event)">
           </div>
           <div class="field">
             <label>Data da análise</label>
@@ -464,7 +464,7 @@ function renderItems(){
     <tr>
       <td style="color:var(--text-faint);font-size:12px">${it.id}</td>
       <td style="font-size:12px;line-height:1.4">${it.desc}</td>
-      <td><input type="text" id="item${it.id}" value="0,00" onchange="manualChange(${it.id},this.value)" style="width:100%"></td>
+      <td><input type="text" id="item${it.id}" value="0,00" onchange="manualChange(${it.id},this.value)" onkeydown="enterBlur(event)" style="width:100%"></td>
     </tr>`).join('');
 }
 
@@ -472,6 +472,13 @@ function manualChange(id, val){
   // Se editou um item que é base de algum calc, recalcula os dependentes
   aplicarCalc();
   calcular();
+}
+
+function enterBlur(event){
+  if(event.key === 'Enter'){
+    event.preventDefault();
+    event.target.blur();
+  }
 }
 
 function onValorVendaChange(){
