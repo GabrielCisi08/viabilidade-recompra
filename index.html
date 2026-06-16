@@ -239,7 +239,7 @@ input[type=file]{display:none}
             <tbody id="itemsBody"></tbody>
             <tfoot>
               <tr class="total-row">
-                <td colspan="2" style="padding:10px;font-size:13px">(=) SALDO / RESULTADO DA TRANSAÇÃO</td>
+                <td colspan="2" style="padding:10px;font-size:13px">(=) LUCRO / RESULTADO DA TRANSAÇÃO</td>
                 <td class="num" id="totalCell" style="padding:10px;font-size:15px">0,00</td>
               </tr>
             </tfoot>
@@ -323,11 +323,11 @@ input[type=file]{display:none}
         <div class="card-title">Critérios de viabilidade</div>
         <div class="form-grid">
           <div class="field">
-            <label>Saldo mínimo para aprovação (R$)</label>
+            <label>Lucro mínimo para aprovação (R$)</label>
             <input type="number" id="thresholdMin" value="0" step="500">
           </div>
           <div class="field">
-            <label>Saldo de atenção — abaixo é alerta (R$)</label>
+            <label>Lucro de atenção — abaixo é alerta (R$)</label>
             <input type="number" id="thresholdAlert" value="10000" step="1000">
           </div>
         </div>
@@ -477,7 +477,7 @@ function calcular(){
     }
   } else {
     rv.style.color = 'var(--red)'; tc.style.color = 'var(--red)';
-    sb.innerHTML = `<span class="badge fail">✗ Inviável — saldo negativo</span>`;
+    sb.innerHTML = `<span class="badge fail">✗ Inviável — lucro negativo</span>`;
   }
 }
 
@@ -658,7 +658,7 @@ function preencherDados(row){
   // 2ª passada: calc (depende de outros itens já preenchidos)
   aplicarCalc();
 
-  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Unidade: ${row['UNIDADE']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Saldo Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
+  g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Unidade: ${row['UNIDADE']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Lucro Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
   calcular();
 }
 
@@ -754,7 +754,7 @@ function processarLote(){
           <thead><tr>
             <th>Cliente</th><th>Unidade</th><th>Empreendimento</th>
             <th style="text-align:right">Receita</th>
-            <th style="text-align:right">Saldo Viabilidade</th>
+            <th style="text-align:right">Lucro Viabilidade</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -764,7 +764,7 @@ function processarLote(){
 
 function exportarCSV(){
   if(!loteResults.length){alert('Execute o processamento de lote primeiro.');return;}
-  const header = ['Cliente','Unidade','Empreendimento','Receita','Saldo Viabilidade','Viável'];
+  const header = ['Cliente','Unidade','Empreendimento','Receita','Lucro Viabilidade','Viável'];
   const rows = loteResults.map(r=>[
     r['NOME'],r['UNIDADE'],r['EMPREENDIMENTO'],
     (r._vv||0).toFixed(2),(r._resultado||0).toFixed(2),r._viavel?'SIM':'NÃO'
@@ -855,7 +855,7 @@ function gerarPDF(){
   <tbody>${linhas}</tbody>
   <tfoot>
     <tr class="total-row">
-      <td style="padding:8px;border-top:2px solid #999" colspan="2">(=) SALDO / RESULTADO DA TRANSAÇÃO</td>
+      <td style="padding:8px;border-top:2px solid #999" colspan="2">(=) LUCRO / RESULTADO DA TRANSAÇÃO</td>
       <td style="padding:8px;text-align:right;border-top:2px solid #999;font-size:14px">${total}</td>
     </tr>
   </tfoot>
@@ -947,7 +947,7 @@ function exportarLotePDF(){
       itens: calc.items.map(i=>i.valor),
       total: calc.total
     };
-  });
+  }).sort((a,b)=>b.total-a.total);
 
   // Legenda dos itens
   const legenda = ITEMS.map(it=>`<div style="font-size:8px;line-height:1.3"><b>Item ${it.id}:</b> ${it.desc}</div>`).join('');
@@ -993,7 +993,7 @@ function exportarLotePDF(){
     <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#8B1A1A;color:#fff;text-align:left">Unidade</th>
     <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#8B1A1A;color:#fff;text-align:left">Cliente</th>
     ${headCols}
-    <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#6B1010;color:#fff;text-align:right">SALDO</th>
+    <th style="padding:3px 4px;font-size:8px;border:0.5px solid #ccc;background:#6B1010;color:#fff;text-align:right">LUCRO</th>
   </tr></thead>
   <tbody>${bodyRows}</tbody>
 </table>
@@ -1019,13 +1019,14 @@ function exportarLoteExcel(){
   const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   // Cabeçalhos
-  const headers = ['Unidade','Cliente','Chaves', ...ITEMS.map(it=>it.desc), 'SALDO / RESULTADO'];
+  const headers = ['Unidade','Cliente','Chaves', ...ITEMS.map(it=>it.desc), 'LUCRO / RESULTADO'];
   const headerCells = headers.map(hd=>
     `<Cell ss:StyleID="hdr"><Data ss:Type="String">${esc(hd)}</Data></Cell>`
   ).join('');
 
   // Linhas de dados
-  const dataRows = filtered.map(row=>{
+  const sortedFiltered = [...filtered].map(r=>({r, _t:calcularItensRow(r).total})).sort((a,b)=>b._t-a._t).map(x=>x.r);
+  const dataRows = sortedFiltered.map(row=>{
     const calc = calcularItensRow(row);
     const txtCells = [row['UNIDADE']||'', row['NOME']||'', row['CHAVES']||''].map(v=>
       `<Cell><Data ss:Type="String">${esc(v)}</Data></Cell>`
