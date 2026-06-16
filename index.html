@@ -948,7 +948,7 @@ function renderMS(key, query){
     const sel = state.selected.has(v);
     const safe = String(v).replace(/"/g,'&quot;').replace(/'/g,"\\'");
     const disp = String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return `<div class="ms-opt ${sel?'ms-sel':''}" onclick="toggleMSOpt('${key}','${safe}')">
+    return `<div class="ms-opt ${sel?'ms-sel':''}" onclick="toggleMSOpt('${key}','${safe}', this)">
       <span class="ms-check">${sel?'✓':''}</span>
       <span class="ms-text">${disp}</span>
     </div>`;
@@ -973,27 +973,50 @@ function toggleMS(key){
   if(!isOpen){ drop.style.display='block'; renderMS(key,''); }
 }
 
-function toggleMSOpt(key, val){
+function toggleMSOpt(key, val, el){
   const state = window['_ms'+key];
   if(!state) return;
   if(state.selected.has(val)) state.selected.delete(val);
   else state.selected.add(val);
   updateMSLabel(key);
-  // mantém a busca atual ao re-renderizar
-  const drop = g('ms'+key+'Drop');
-  const s = drop ? drop.querySelector('.ms-search') : null;
-  renderMS(key, s ? s.value : '');
+  if(el){
+    if(state.selected.has(val)){
+      el.classList.add('ms-sel');
+      const chk = el.querySelector('.ms-check'); if(chk) chk.textContent='\u2713';
+    } else {
+      el.classList.remove('ms-sel');
+      const chk = el.querySelector('.ms-check'); if(chk) chk.textContent='';
+    }
+  }
 }
 
 function msSelectAll(key){
   const state = window['_ms'+key];
-  state.values.forEach(v=>state.selected.add(v));
-  updateMSLabel(key); renderMS(key,'');
+  if(!state) return;
+  // Seleciona apenas os itens visíveis no filtro de busca atual
+  const drop = g('ms'+key+'Drop');
+  const s = drop ? drop.querySelector('.ms-search') : null;
+  const q = s ? s.value.toLowerCase().trim() : '';
+  const visiveis = q ? state.values.filter(v=>String(v).toLowerCase().includes(q)) : state.values;
+  visiveis.forEach(v=>state.selected.add(v));
+  updateMSLabel(key);
+  renderMS(key, q);
 }
 function msClear(key){
   const state = window['_ms'+key];
-  state.selected.clear();
-  updateMSLabel(key); renderMS(key,'');
+  if(!state) return;
+  const drop = g('ms'+key+'Drop');
+  const s = drop ? drop.querySelector('.ms-search') : null;
+  const q = s ? s.value.toLowerCase().trim() : '';
+  if(q){
+    // Remove só os visíveis do filtro de busca
+    const visiveis = state.values.filter(v=>String(v).toLowerCase().includes(q));
+    visiveis.forEach(v=>state.selected.delete(v));
+  } else {
+    state.selected.clear();
+  }
+  updateMSLabel(key);
+  renderMS(key, q);
 }
 
 function updateMSLabel(key){
