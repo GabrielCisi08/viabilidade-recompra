@@ -948,7 +948,7 @@ function renderMS(key, query){
     const sel = state.selected.has(v);
     const safe = String(v).replace(/"/g,'&quot;').replace(/'/g,"\\'");
     const disp = String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return `<div class="ms-opt ${sel?'ms-sel':''}" onclick="toggleMSOpt('${key}','${safe}', this)">
+    return `<div class="ms-opt ${sel?'ms-sel':''}" data-val="${safe}" onclick="toggleMSOpt('${key}','${safe}', this)">
       <span class="ms-check">${sel?'✓':''}</span>
       <span class="ms-text">${disp}</span>
     </div>`;
@@ -993,30 +993,34 @@ function toggleMSOpt(key, val, el){
 function msSelectAll(key){
   const state = window['_ms'+key];
   if(!state) return;
-  // Seleciona apenas os itens visíveis no filtro de busca atual
   const drop = g('ms'+key+'Drop');
-  const s = drop ? drop.querySelector('.ms-search') : null;
-  const q = s ? s.value.toLowerCase().trim() : '';
-  const visiveis = q ? state.values.filter(v=>String(v).toLowerCase().includes(q)) : state.values;
-  visiveis.forEach(v=>state.selected.add(v));
+  if(!drop) return;
+  // Marca todos os itens atualmente visíveis (linhas renderizadas)
+  drop.querySelectorAll('.ms-opt').forEach(el=>{
+    const val = el.getAttribute('data-val');
+    if(val!==null){
+      state.selected.add(val);
+      el.classList.add('ms-sel');
+      const chk = el.querySelector('.ms-check'); if(chk) chk.textContent='\u2713';
+    }
+  });
   updateMSLabel(key);
-  renderMS(key, q);
 }
 function msClear(key){
   const state = window['_ms'+key];
   if(!state) return;
   const drop = g('ms'+key+'Drop');
-  const s = drop ? drop.querySelector('.ms-search') : null;
-  const q = s ? s.value.toLowerCase().trim() : '';
-  if(q){
-    // Remove só os visíveis do filtro de busca
-    const visiveis = state.values.filter(v=>String(v).toLowerCase().includes(q));
-    visiveis.forEach(v=>state.selected.delete(v));
-  } else {
-    state.selected.clear();
-  }
+  if(!drop) return;
+  // Desmarca todos os itens atualmente visíveis
+  drop.querySelectorAll('.ms-opt').forEach(el=>{
+    const val = el.getAttribute('data-val');
+    if(val!==null){
+      state.selected.delete(val);
+      el.classList.remove('ms-sel');
+      const chk = el.querySelector('.ms-check'); if(chk) chk.textContent='';
+    }
+  });
   updateMSLabel(key);
-  renderMS(key, q);
 }
 
 function updateMSLabel(key){
