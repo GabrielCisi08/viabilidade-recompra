@@ -1196,7 +1196,7 @@ function exportarLotePDF(){
     else if(r.total < cfgPDF.thAlert) classColor = '#ba7517'; // Atenção
     else classColor = '#1a7d1a';                              // Viável
     return `<tr>
-      <td style="padding:3px 8px;font-size:8px;font-weight:600;white-space:nowrap;color:#1a1a18;border-left:4px solid ${classColor}">${r.unidade}</td>
+      <td style="padding:0;font-size:8px;font-weight:600;white-space:nowrap;color:#1a1a18;position:relative"><span style="display:flex;align-items:stretch"><span style="width:5px;background:${classColor};flex-shrink:0;box-shadow:-1px 0 2px rgba(0,0,0,.18)"></span><span style="padding:3px 8px">${r.unidade}</span></span></td>
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;color:#555">${r.nome}</td>
       ${itemCells}
       <td style="padding:3px 8px;font-size:8px;text-align:right;font-weight:700;color:${tColor};background:rgba(158,27,27,.03);border-left:2px solid #f0eaea">${fmt(r.total)}</td>
