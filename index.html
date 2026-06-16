@@ -486,14 +486,44 @@ function loadFromSheet(){
   g('syncTitle').textContent='Carregando base de dados…';
   g('syncSub').textContent='Conectando ao Google Sheets';
   g('fileStatus').innerHTML='';
-  fetch(url)
-    .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-    .then(rows=>processData(rows))
-    .catch(err=>{
+
+  // JSONP para contornar CORS do Apps Script
+  const cbName = 'jsonpCallback_' + Date.now();
+  const timeout = setTimeout(()=>{
+    g('syncIcon').textContent='❌';
+    g('syncTitle').textContent='Erro ao carregar';
+    g('syncSub').textContent='Tempo esgotado. Verifique a URL e a implantação do script.';
+    cleanup();
+  }, 30000);
+
+  function cleanup(){
+    delete window[cbName];
+    const s = document.getElementById('jsonpScript');
+    if(s) s.remove();
+  }
+
+  window[cbName] = function(data){
+    clearTimeout(timeout);
+    cleanup();
+    try{ processData(data); }
+    catch(err){
       g('syncIcon').textContent='❌';
-      g('syncTitle').textContent='Erro ao carregar';
+      g('syncTitle').textContent='Erro ao processar';
       g('syncSub').textContent=String(err);
-    });
+    }
+  };
+
+  const script = document.createElement('script');
+  script.id = 'jsonpScript';
+  script.src = url + '?callback=' + cbName;
+  script.onerror = function(){
+    clearTimeout(timeout);
+    cleanup();
+    g('syncIcon').textContent='❌';
+    g('syncTitle').textContent='Erro ao carregar';
+    g('syncSub').textContent='Falha na conexão com o script.';
+  };
+  document.body.appendChild(script);
 }
 
 function processData(raw){
