@@ -146,10 +146,7 @@ input[type=file]{display:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         Análise em Lote
       </button>
-      <button class="nav-item" onclick="showPage('config',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Configurações
-      </button>
+      
     </nav>
     <div class="sidebar-footer">
       v1.0 · Exporta HTML/PDF<br>
@@ -318,12 +315,25 @@ input[type=file]{display:none}
           </div>
         </div>
         <div class="btn-row">
-        <button class="primary" onclick="salvarConfig()">Salvar configurações</button>
-        <button onclick="resetConfig()">Restaurar padrões</button>
+          <button class="primary" onclick="processarLote()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Processar lote
+          </button>
+          <button onclick="exportarLotePDF()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF detalhado
+          </button>
+          <button onclick="exportarLoteExcel()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Excel detalhado
+          </button>
+        </div>
       </div>
-      <div id="configMsg" style="margin-top:10px;font-size:13px;color:var(--green)"></div>
+
+      <div id="loteResult"></div>
     </div>
 
+    
   </main>
 </div>
 
@@ -361,21 +371,8 @@ function parseBR(s){
 }
 
 function getConfig(){
-  return {
-    retRate: parseFloat(g('retRate')?.value||4)/100,
-    retCreditRate: parseFloat(g('retCreditRate')?.value||2.4)/100,
-    comissaoRate: parseFloat(g('comissaoRate')?.value||5)/100,
-    itbiRate: parseFloat(g('itbiRate')?.value||3)/100,
-    itbiRevendaRate: parseFloat(g('itbiRevendaRate')?.value||0.5)/100,
-    itbiDifRate: parseFloat(g('itbiDifRate')?.value||3)/100,
-    tccav: parseFloat(g('tccavVal')?.value||300),
-    avaliacao: parseFloat(g('avaliacaoVal')?.value||750),
-    emolRecompra: parseFloat(g('emolRecompraVal')?.value||3000),
-    emolFiduciaria1: parseFloat(g('emolFiduciaria1Val')?.value||2800),
-    emolFiduciaria2: parseFloat(g('emolFiduciaria2Val')?.value||4800),
-    thMin: parseFloat(g('thresholdMin')?.value||0),
-    thAlert: parseFloat(g('thresholdAlert')?.value||10000),
-  };
+  // Critério: lucro >= 0 é viável; abaixo de 10.000 mostra alerta
+  return { thMin: 0, thAlert: 10000 };
 }
 
 function renderItems(){
@@ -859,20 +856,9 @@ function showPage(name, btn){
   btn.classList.add('active');
 }
 
-function salvarConfig(){
-  g('configMsg').textContent = '✓ Configurações salvas. Os próximos cálculos usarão estes valores.';
-  setTimeout(()=>{g('configMsg').textContent='';},3000);
-  calcular();
-}
 
-function resetConfig(){
-  g('retRate').value=4; g('retCreditRate').value=2.4; g('comissaoRate').value=5;
-  g('itbiRate').value=3; g('itbiRevendaRate').value=0.5; g('itbiDifRate').value=3;
-  g('tccavVal').value=300; g('avaliacaoVal').value=750;
-  g('emolRecompraVal').value=3000; g('emolFiduciaria1Val').value=2800; g('emolFiduciaria2Val').value=4800;
-  g('thresholdMin').value=0; g('thresholdAlert').value=10000;
-  calcular();
-}
+
+
 
 g('dataAnalise').value = new Date().toISOString().split('T')[0];
 renderItems();
