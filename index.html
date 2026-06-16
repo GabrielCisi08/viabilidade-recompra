@@ -96,6 +96,18 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .stat .s-val{font-size:22px;font-weight:700;margin-top:2px}
 .divider{height:1px;background:var(--border);margin:16px 0}
 input[type=file]{display:none}
+.ms-wrap{position:relative;width:100%}
+.ms-control{width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);cursor:pointer;min-height:36px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ms-control:hover{border-color:var(--border-strong)}
+.ms-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:9999;max-height:280px;overflow-y:auto}
+.ms-search{width:100%;padding:7px 10px;border:none;border-bottom:1px solid var(--border);font-size:12px;outline:none;background:var(--bg);position:sticky;top:0}
+.ms-opt{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:12px;cursor:pointer;border-bottom:0.5px solid var(--border)}
+.ms-opt:hover{background:var(--blue-light)}
+.ms-opt input{margin:0;cursor:pointer}
+.ms-opt label{cursor:pointer;flex:1}
+.ms-actions{display:flex;gap:6px;padding:6px 10px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--surface)}
+.ms-actions button{flex:1;font-size:11px;padding:4px 8px}
+
 .custom-select-wrap{position:relative;width:100%}
 .cs-input{width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);cursor:pointer;transition:border-color .15s}
 .cs-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,.08)}
@@ -285,85 +297,27 @@ input[type=file]{display:none}
         <div class="form-grid three">
           <div class="field">
             <label>Base</label>
-            <select id="filtroBase"><option value="">Todas</option></select>
+            <div class="ms-wrap" id="msBase">
+              <div class="ms-control" onclick="toggleMS('Base')"><span id="msBaseLabel">Todas</span><span style="float:right">▾</span></div>
+              <div class="ms-dropdown" id="msBaseDrop" style="display:none"></div>
+            </div>
           </div>
           <div class="field">
             <label>Empreendimento</label>
-            <select id="filtroEmp"><option value="">Todos</option></select>
+            <div class="ms-wrap" id="msEmp">
+              <div class="ms-control" onclick="toggleMS('Emp')"><span id="msEmpLabel">Todos</span><span style="float:right">▾</span></div>
+              <div class="ms-dropdown" id="msEmpDrop" style="display:none"></div>
+            </div>
           </div>
           <div class="field">
             <label>Fase</label>
-            <select id="filtroFase"><option value="">Todas</option></select>
+            <div class="ms-wrap" id="msFase">
+              <div class="ms-control" onclick="toggleMS('Fase')"><span id="msFaseLabel">Todas</span><span style="float:right">▾</span></div>
+              <div class="ms-dropdown" id="msFaseDrop" style="display:none"></div>
+            </div>
           </div>
         </div>
         <div class="btn-row">
-          <button class="primary" onclick="processarLote()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Processar lote
-          </button>
-          <button onclick="exportarLotePDF()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            PDF detalhado
-          </button>
-          <button onclick="exportarLoteExcel()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Excel detalhado
-          </button>
-        </div>
-      </div>
-
-      <div id="loteResult"></div>
-    </div>
-
-    <!-- CONFIGURAÇÕES -->
-    <div id="page-config" class="page">
-      <div class="page-header">
-        <h2>Configurações</h2>
-        <p>Ajuste taxas, valores fixos e critérios de viabilidade. Aplicados automaticamente nos cálculos.</p>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Critérios de viabilidade</div>
-        <div class="form-grid">
-          <div class="field">
-            <label>Lucro mínimo para aprovação (R$)</label>
-            <input type="number" id="thresholdMin" value="0" step="500">
-          </div>
-          <div class="field">
-            <label>Lucro de atenção — abaixo é alerta (R$)</label>
-            <input type="number" id="thresholdAlert" value="10000" step="1000">
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Alíquotas e taxas</div>
-        <div class="form-grid three">
-          <div class="field"><label>RET — alíquota (%)</label><input type="number" id="retRate" value="4" step="0.01"></div>
-          <div class="field"><label>Crédito RET (%)</label><input type="number" id="retCreditRate" value="2.4" step="0.01"></div>
-          <div class="field"><label>Comissão — cadeia de vendas (%)</label><input type="number" id="comissaoRate" value="5" step="0.01"></div>
-        </div>
-        <div class="form-grid three">
-          <div class="field"><label>ITBI recompra (%)</label><input type="number" id="itbiRate" value="3" step="0.01"></div>
-          <div class="field"><label>ITBI revenda base (%)</label><input type="number" id="itbiRevendaRate" value="0.5" step="0.01"></div>
-          <div class="field"><label>ITBI revenda dif. CV (%)</label><input type="number" id="itbiDifRate" value="3" step="0.01"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Valores fixos (R$)</div>
-        <div class="form-grid three">
-          <div class="field"><label>Avaliação CEF</label><input type="number" id="avaliacaoVal" value="750" step="50"></div>
-          <div class="field"><label>TCCAV</label><input type="number" id="tccavVal" value="300" step="50"></div>
-          <div class="field"><label>Emolumentos escrituração</label><input type="number" id="emolRecompraVal" value="3000" step="100"></div>
-        </div>
-        <div class="form-grid three">
-          <div class="field"><label>Emolumentos fiduciária recompra</label><input type="number" id="emolFiduciaria1Val" value="2800" step="100"></div>
-          <div class="field"><label>Emolumentos fiduciária revenda</label><input type="number" id="emolFiduciaria2Val" value="4800" step="100"></div>
-        </div>
-      </div>
-
-      <div class="btn-row">
         <button class="primary" onclick="salvarConfig()">Salvar configurações</button>
         <button onclick="resetConfig()">Restaurar padrões</button>
       </div>
@@ -562,15 +516,14 @@ function processData(raw){
   g('syncSub').textContent='Atualizado agora · Google Sheets ao vivo';
   g('fileStatus').innerHTML='<div class="file-pill">✓ '+csvData.length+' registros</div>';
 
-  const fill=(selId,field)=>{
-    const sel=g(selId); if(!sel) return;
-    sel.innerHTML='<option value="">Todos</option>';
-    [...new Set(csvData.map(r=>r[field]).filter(Boolean))].sort()
-      .forEach(v=>{const o=document.createElement('option');o.value=v;o.text=v;sel.appendChild(o);});
+  const fillMS=(key,field)=>{
+    const values = [...new Set(csvData.map(r=>r[field]).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
+    window['_ms'+key] = {field, values, selected:new Set()};
+    renderMS(key);
   };
-  fill('filtroBase','BASE');
-  fill('filtroEmp','EMPREENDIMENTO');
-  fill('filtroFase','FASE');
+  fillMS('Base','BASE');
+  fillMS('Emp','EMPREENDIMENTO');
+  fillMS('Fase','FASE');
 
   const sortedUnits=[...csvData].sort((a,b)=>
     (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR',{numeric:true})
@@ -722,14 +675,14 @@ function processarLote(){
     return;
   }
   const cfg = getConfig();
-  const baseF = g('filtroBase') ? g('filtroBase').value : '';
-  const empF = g('filtroEmp').value;
-  const faseF = g('filtroFase') ? g('filtroFase').value : '';
+  const baseSel = getMSSelected('Base');
+  const empSel = getMSSelected('Emp');
+  const faseSel = getMSSelected('Fase');
 
   let filtered = csvData.filter(r=>r['RECEITA']>0 || r['SALDO_VIAB']!==0);
-  if(baseF) filtered = filtered.filter(r=>r['BASE']===baseF);
-  if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
-  if(faseF) filtered = filtered.filter(r=>r['FASE']===faseF);
+  if(baseSel.size) filtered = filtered.filter(r=>baseSel.has(r['BASE']));
+  if(empSel.size) filtered = filtered.filter(r=>empSel.has(r['EMPREENDIMENTO']));
+  if(faseSel.size) filtered = filtered.filter(r=>faseSel.has(r['FASE']));
 
   loteResults = filtered.map(row=>{
     const resultado = row['SALDO_VIAB']||0;
@@ -928,16 +881,95 @@ calcular();
 loadFromSheet();
 
 
+
+// ── Multi-select com checkboxes (filtros do lote) ────────────────────────────
+function renderMS(key, query){
+  const state = window['_ms'+key];
+  if(!state) return;
+  const drop = g('ms'+key+'Drop');
+  if(!drop) return;
+  const q = (query||'').toLowerCase();
+  const filtered = q ? state.values.filter(v=>String(v).toLowerCase().includes(q)) : state.values;
+  const opts = filtered.map(v=>{
+    const checked = state.selected.has(v) ? 'checked' : '';
+    const safe = String(v).replace(/"/g,'&quot;');
+    const id = 'ms_'+key+'_'+btoa(unescape(encodeURIComponent(v))).replace(/[^a-zA-Z0-9]/g,'');
+    return `<div class="ms-opt"><input type="checkbox" id="${id}" ${checked} onchange="toggleMSOpt('${key}', this, '${safe}')"><label for="${id}">${safe}</label></div>`;
+  }).join('');
+  drop.innerHTML = `
+    <input type="text" class="ms-search" placeholder="Buscar…" oninput="renderMS('${key}', this.value)" value="${query||''}">
+    ${opts || '<div style="padding:10px;font-size:12px;color:var(--text-muted)">Nenhum resultado</div>'}
+    <div class="ms-actions">
+      <button onclick="msSelectAll('${key}')">Todos</button>
+      <button onclick="msClear('${key}')">Limpar</button>
+    </div>`;
+  // keep search focused
+  const s = drop.querySelector('.ms-search');
+  if(s && query!==undefined){ s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+}
+
+function toggleMS(key){
+  const drop = g('ms'+key+'Drop');
+  if(!drop) return;
+  const isOpen = drop.style.display !== 'none';
+  // close all
+  ['Base','Emp','Fase'].forEach(k=>{ const d=g('ms'+k+'Drop'); if(d) d.style.display='none'; });
+  if(!isOpen){ drop.style.display='block'; renderMS(key,''); }
+}
+
+function toggleMSOpt(key, cb, val){
+  const state = window['_ms'+key];
+  if(!state) return;
+  if(cb.checked) state.selected.add(val); else state.selected.delete(val);
+  updateMSLabel(key);
+}
+
+function msSelectAll(key){
+  const state = window['_ms'+key];
+  state.values.forEach(v=>state.selected.add(v));
+  updateMSLabel(key); renderMS(key,'');
+}
+function msClear(key){
+  const state = window['_ms'+key];
+  state.selected.clear();
+  updateMSLabel(key); renderMS(key,'');
+}
+
+function updateMSLabel(key){
+  const state = window['_ms'+key];
+  const lbl = g('ms'+key+'Label');
+  if(!lbl) return;
+  const n = state.selected.size;
+  const defaults = {Base:'Todas', Emp:'Todos', Fase:'Todas'};
+  if(n===0) lbl.textContent = defaults[key];
+  else if(n===1) lbl.textContent = [...state.selected][0];
+  else lbl.textContent = n + ' selecionados';
+}
+
+function getMSSelected(key){
+  const state = window['_ms'+key];
+  return state ? state.selected : new Set();
+}
+
+// fecha dropdowns ao clicar fora
+document.addEventListener('click', function(e){
+  ['Base','Emp','Fase'].forEach(k=>{
+    const wrap = g('ms'+k);
+    const drop = g('ms'+k+'Drop');
+    if(wrap && drop && !wrap.contains(e.target)) drop.style.display='none';
+  });
+});
+
 // ── Exportação detalhada do lote (PDF paisagem + Excel) ──────────────────────
 function getLoteFiltrado(){
   if(!csvData.length) return [];
-  const baseF = g('filtroBase') ? g('filtroBase').value : '';
-  const empF = g('filtroEmp') ? g('filtroEmp').value : '';
-  const faseF = g('filtroFase') ? g('filtroFase').value : '';
+  const baseSel = getMSSelected('Base');
+  const empSel = getMSSelected('Emp');
+  const faseSel = getMSSelected('Fase');
   let filtered = csvData.filter(r=>(r['VALOR_VENDA']>0)||(r['SALDO_VIAB']!==0));
-  if(baseF) filtered = filtered.filter(r=>r['BASE']===baseF);
-  if(empF) filtered = filtered.filter(r=>r['EMPREENDIMENTO']===empF);
-  if(faseF) filtered = filtered.filter(r=>r['FASE']===faseF);
+  if(baseSel.size) filtered = filtered.filter(r=>baseSel.has(r['BASE']));
+  if(empSel.size) filtered = filtered.filter(r=>empSel.has(r['EMPREENDIMENTO']));
+  if(faseSel.size) filtered = filtered.filter(r=>faseSel.has(r['FASE']));
   return filtered;
 }
 
