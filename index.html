@@ -1162,6 +1162,8 @@ function exportarLotePDF(){
     return {
       unidade: row['UNIDADE']||'',
       nome: row['NOME']||'',
+      tipologia: [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / '),
+      metragem: row['AREA']||'',
       chaves: row['CHAVES']||'',
       itens: calc.items.map(i=>i.valor),
       total: calc.total
@@ -1198,6 +1200,8 @@ function exportarLotePDF(){
     return `<tr>
       <td style="padding:0;font-size:8px;font-weight:600;white-space:nowrap;color:#1a1a18;position:relative"><span style="display:flex;align-items:stretch"><span style="width:5px;background:${classColor};flex-shrink:0;box-shadow:-1px 0 2px rgba(0,0,0,.18)"></span><span style="padding:3px 8px">${r.unidade}</span></span></td>
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;color:#555">${r.nome}</td>
+      <td style="padding:3px 8px;font-size:8px;white-space:nowrap;color:#555">${r.tipologia}</td>
+      <td style="padding:3px 8px;font-size:8px;text-align:right;color:#555">${r.metragem}</td>
       ${itemCells}
       <td style="padding:3px 8px;font-size:8px;text-align:right;font-weight:700;color:${tColor};background:rgba(158,27,27,.03);border-left:2px solid #f0eaea">${fmt(r.total)}</td>
     </tr>`;
@@ -1259,6 +1263,8 @@ function exportarLotePDF(){
   <thead><tr>
     <th style="padding:5px 8px;font-size:8px;text-align:left">Unidade</th>
     <th style="padding:5px 8px;font-size:8px;text-align:left">Cliente</th>
+    <th style="padding:5px 8px;font-size:8px;text-align:left">Tipologia / Cat. Uso</th>
+    <th style="padding:5px 8px;font-size:8px;text-align:right">Metragem</th>
     ${headCols}
     <th style="padding:5px 8px;font-size:8px;text-align:right;background:#6B1010 !important;border-left:2px solid #fff">LUCRO</th>
   </tr></thead>
@@ -1286,7 +1292,7 @@ function exportarLoteExcel(){
   const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   // Cabeçalhos
-  const headers = ['Unidade','Cliente','Chaves', ...ITEMS.map(it=>it.desc), 'LUCRO / RESULTADO'];
+  const headers = ['Unidade','Cliente','Tipologia / Cat. Uso','Metragem','Chaves', ...ITEMS.map(it=>it.desc), 'LUCRO / RESULTADO'];
   const headerCells = headers.map(hd=>
     `<Cell ss:StyleID="hdr"><Data ss:Type="String">${esc(hd)}</Data></Cell>`
   ).join('');
@@ -1295,7 +1301,8 @@ function exportarLoteExcel(){
   const sortedFiltered = [...filtered].map(r=>({r, _t:calcularItensRow(r).total})).sort((a,b)=>b._t-a._t).map(x=>x.r);
   const dataRows = sortedFiltered.map(row=>{
     const calc = calcularItensRow(row);
-    const txtCells = [row['UNIDADE']||'', row['NOME']||'', row['CHAVES']||''].map(v=>
+    const tipo = [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / ');
+    const txtCells = [row['UNIDADE']||'', row['NOME']||'', tipo, row['AREA']||'', row['CHAVES']||''].map(v=>
       `<Cell><Data ss:Type="String">${esc(v)}</Data></Cell>`
     ).join('');
     const numCells = calc.items.map(i=>{
