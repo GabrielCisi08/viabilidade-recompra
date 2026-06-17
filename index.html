@@ -96,6 +96,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .stat .s-val{font-size:22px;font-weight:700;margin-top:2px}
 .divider{height:1px;background:var(--border);margin:16px 0}
 input[type=file]{display:none}
+
 .ms-wrap{position:relative;width:100%}
 .ms-control{width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);cursor:pointer;min-height:36px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ms-control:hover{border-color:var(--border-strong)}
@@ -1004,7 +1005,23 @@ loadFromSheet();
 
 
 
-// ── Multi-select com checkboxes (filtros do lote) ────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+function fillMS(key, field){
+  const values = [...new Set(csvData.map(r=>r[field]).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
+  window['_ms'+key] = {field, values, selected:new Set()};
+  renderMS(key);
+}
+
 function renderMS(key, query){
   const state = window['_ms'+key];
   if(!state) return;
