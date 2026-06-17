@@ -326,6 +326,15 @@ input[type=file]{display:none}
             </div>
           </div>
         </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="field">
+            <label>Unidade</label>
+            <div class="ms-wrap" id="msUnid">
+              <div class="ms-control" onclick="toggleMS('Unid')"><span id="msUnidLabel">Todas</span><span style="float:right">▾</span></div>
+              <div class="ms-dropdown" id="msUnidDrop" style="display:none"></div>
+            </div>
+          </div>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;margin:4px 0 14px">
           <input type="checkbox" id="apenasViaveis" style="width:16px;height:16px;cursor:pointer">
           <label for="apenasViaveis" style="font-size:13px;color:var(--text);cursor:pointer">Considerar apenas unidades viáveis (lucro positivo)</label>
@@ -643,6 +652,7 @@ function processData(raw){
   fillMS('Base','BASE');
   fillMS('Emp','EMPREENDIMENTO');
   fillMS('Fase','FASE');
+  fillMS('Unid','UNIDADE');
 
   const sortedUnits=[...csvData].sort((a,b)=>
     (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR',{numeric:true})
@@ -797,8 +807,8 @@ function processarLote(){
   let filtered = getLoteFiltrado();
 
   loteResults = filtered.map(row=>{
-    const resultado = row['SALDO_VIAB']||0;
-    return {...row, _vv:row['RECEITA']||0, _resultado:resultado, _viavel:resultado>=cfg.thMin};
+    const resultado = calcularItensRow(row).total;
+    return {...row, _vv:row['VALOR_VENDA']||0, _resultado:resultado, _viavel:resultado>=cfg.thMin};
   }).sort((a,b)=>b._resultado-a._resultado);
 
   const viaveis = loteResults.filter(r=>r._viavel).length;
@@ -1031,7 +1041,7 @@ function toggleMS(key){
   if(!drop) return;
   const isOpen = drop.style.display !== 'none';
   // fecha todos
-  ['Base','Emp','Fase'].forEach(k=>{ const d=g('ms'+k+'Drop'); if(d) d.style.display='none'; });
+  ['Base','Emp','Fase','Unid'].forEach(k=>{ const d=g('ms'+k+'Drop'); if(d) d.style.display='none'; });
   if(!isOpen){
     const state = window['_ms'+key];
     if(state) state._snapshot = new Set(state.selected); // snapshot para cancelar
@@ -1113,7 +1123,7 @@ function updateMSLabel(key){
   const lbl = g('ms'+key+'Label');
   if(!lbl) return;
   const n = state.selected.size;
-  const defaults = {Base:'Todas', Emp:'Todos', Fase:'Todas'};
+  const defaults = {Base:'Todas', Emp:'Todos', Fase:'Todas', Unid:'Todas'};
   if(n===0) lbl.textContent = defaults[key];
   else if(n===1) lbl.textContent = [...state.selected][0];
   else lbl.textContent = n + ' selecionados';
@@ -1126,7 +1136,7 @@ function getMSSelected(key){
 
 // fecha dropdowns ao clicar fora = comporta como Cancelar (restaura seleção)
 document.addEventListener('click', function(e){
-  ['Base','Emp','Fase'].forEach(k=>{
+  ['Base','Emp','Fase','Unid'].forEach(k=>{
     const wrap = g('ms'+k);
     const drop = g('ms'+k+'Drop');
     if(wrap && drop && drop.style.display!=='none' && !wrap.contains(e.target)){
@@ -1141,12 +1151,14 @@ function getLoteFiltrado(){
   const baseSel = getMSSelected('Base');
   const empSel = getMSSelected('Emp');
   const faseSel = getMSSelected('Fase');
+  const unidSel = getMSSelected('Unid');
   const soViaveis = g('apenasViaveis') && g('apenasViaveis').checked;
   const cfg = getConfig();
   let filtered = csvData.filter(r=>(r['VALOR_VENDA']>0)||(r['SALDO_VIAB']!==0));
   if(baseSel.size) filtered = filtered.filter(r=>baseSel.has(r['BASE']));
   if(empSel.size) filtered = filtered.filter(r=>empSel.has(r['EMPREENDIMENTO']));
   if(faseSel.size) filtered = filtered.filter(r=>faseSel.has(r['FASE']));
+  if(unidSel.size) filtered = filtered.filter(r=>unidSel.has(r['UNIDADE']));
   if(soViaveis) filtered = filtered.filter(r=>calcularItensRow(r).total >= cfg.thMin);
   return filtered;
 }
