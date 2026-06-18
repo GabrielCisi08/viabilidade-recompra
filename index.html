@@ -683,6 +683,7 @@ function processData(raw){
   fillMS('Emp','EMPREENDIMENTO');
   fillMS('Fase','FASE');
   fillMS('Unid','UNIDADE');
+  atualizarOpcoesFiltros();
 
   const sortedUnits=[...csvData].sort((a,b)=>
     (a['UNIDADE']||'').localeCompare(b['UNIDADE']||'','pt-BR',{numeric:true})
@@ -1075,6 +1076,48 @@ loadFromSheet();
 
 
 
+
+// Mapa de filtros → campo na base
+var _msFields = {Base:'BASE', Emp:'EMPREENDIMENTO', Fase:'FASE', Unid:'UNIDADE'};
+
+function linhasCompativeis(exceto){
+  // Retorna as linhas da base que satisfazem TODOS os filtros selecionados,
+  // ignorando o filtro 'exceto' (para não auto-restringir o próprio filtro)
+  // Considera qualquer linha com identificação (unidade/empreendimento/base/fase)
+  let rows = csvData.filter(r=>r['UNIDADE']||r['EMPREENDIMENTO']||r['BASE']||r['FASE']);
+  Object.keys(_msFields).forEach(key=>{
+    if(key===exceto) return;
+    const st = window['_ms'+key];
+    if(st && st.selected.size){
+      rows = rows.filter(r=>st.selected.has(r[_msFields[key]]));
+    }
+  });
+  return rows;
+}
+
+function atualizarOpcoesFiltros(){
+  // Recalcula os valores disponíveis de cada filtro com base nas seleções dos outros
+  Object.keys(_msFields).forEach(key=>{
+    const st = window['_ms'+key];
+    if(!st) return;
+    const field = _msFields[key];
+    const compat = linhasCompativeis(key);
+    const disponiveis = [...new Set(compat.map(r=>r[field]).filter(Boolean))]
+      .sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
+    st.values = disponiveis;
+    // mantém apenas seleções ainda válidas
+    const validSet = new Set(disponiveis);
+    [...st.selected].forEach(v=>{ if(!validSet.has(v)) st.selected.delete(v); });
+    updateMSLabel(key);
+    // se o dropdown estiver aberto, re-renderiza a lista
+    const drop = g('ms'+key+'Drop');
+    if(drop && drop.style.display!=='none'){
+      const s = drop.querySelector('.ms-search');
+      renderMS(key, s ? s.value : '');
+    }
+  });
+}
+
 function fillMS(key, field){
   const values = [...new Set(csvData.map(r=>r[field]).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
   window['_ms'+key] = {field, values, selected:new Set()};
@@ -1131,6 +1174,7 @@ function confirmMS(key){
   if(state) delete state._snapshot; // confirma: descarta snapshot
   const drop = g('ms'+key+'Drop');
   if(drop) drop.style.display='none';
+  atualizarOpcoesFiltros(); // ajusta os outros filtros conforme esta seleção
 }
 
 function cancelMS(key){
