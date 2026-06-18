@@ -471,17 +471,41 @@ function getConfig(){
 function renderItems(){
   const tbody = g('itemsBody');
   if(!tbody) return;
-  tbody.innerHTML = ITEMS.map(it=>`
+  tbody.innerHTML = ITEMS.map(it=>{
+    const auto = (it.tipo==='calc'||it.tipo==='pct'||it.tipo==='itbiRevenda');
+    const hint = auto ? ' <span style="font-size:9px;color:var(--blue);font-weight:600;vertical-align:middle" title="Calculado automaticamente a partir de outro campo">auto</span>' : '';
+    return `
     <tr>
       <td style="color:var(--text-faint);font-size:12px">${it.id}</td>
-      <td style="font-size:12px;line-height:1.4">${it.desc}</td>
+      <td style="font-size:12px;line-height:1.4">${it.desc}${hint}</td>
       <td><input type="text" id="item${it.id}" value="0,00" onchange="formatarCampo(this);manualChange(${it.id},this.value)" onkeydown="enterBlur(event)" style="width:100%"></td>
-    </tr>`).join('');
+    </tr>`;}).join('');
 }
 
-function manualChange(id, val){
-  // Se editou um item que é base de algum calc, recalcula os dependentes
-  aplicarCalc();
+function manualChange(changedId, val){
+  // Propaga regras dependentes quando um item-base é editado direto na tabela
+  // Item 1 (projeção) afeta: item2 (RET 4%), item4 (comissão 5%), item13 (ITBI revenda)
+  // Item 5 (liquidação CEF) afeta: item3 (crédito RET 4%)
+  ITEMS.forEach(it=>{
+    if(it.id === changedId) return; // não sobrescreve o campo que está sendo editado
+    const el = g('item'+it.id);
+    if(!el) return;
+    if(it.tipo === 'calc'){
+      const baseVal = parseBR(g('item'+it.base) ? g('item'+it.base).value : '0');
+      el.value = fmt(round2(Math.abs(baseVal) * (it.pct/100)));
+    } else if(it.tipo === 'pct'){
+      // pct é sobre a projeção de venda = item 1
+      const vv = parseBR(g('item1') ? g('item1').value : '0');
+      el.value = fmt(round2(vv * (it.pct/100)));
+    } else if(it.tipo === 'itbiRevenda'){
+      const vv = parseBR(g('item1') ? g('item1').value : '0');
+      el.value = fmt(round2(calcItbiRevenda(vv)));
+    }
+  });
+  // Se editou o item 1, sincroniza o campo "Valor de venda" do topo
+  if(changedId === 1 && g('valorVenda')){
+    g('valorVenda').value = fmt(round2(parseBR(g('item1').value)));
+  }
   calcular();
 }
 
@@ -1214,16 +1238,55 @@ function abrirEdicaoLote(uKey){
   const body = ITEMS.map((it,idx)=>{
     const valor = calc.items[idx].valor;
     const sinalTxt = it.sinal===1 ? '+' : '−';
+    // itens calculados automaticamente ficam visualmente marcados (mas ainda editáveis)
+    const auto = (it.tipo==='calc'||it.tipo==='pct'||it.tipo==='itbiRevenda');
+    const hint = auto ? '<span style="font-size:9px;color:var(--blue);margin-left:4px" title="Calculado automaticamente a partir de outro campo">auto</span>' : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--border)">
       <span style="width:22px;color:var(--text-faint);font-size:12px">${it.id}</span>
-      <span style="flex:1;font-size:12px;line-height:1.3">${sinalTxt} ${it.desc}</span>
-      <input type="text" id="editItem${it.id}" value="${fmt(valor)}" oninput="recalcEdicaoLote()" style="width:120px;text-align:right;font-size:13px;padding:5px 8px">
+      <span style="flex:1;font-size:12px;line-height:1.3">${sinalTxt} ${it.desc}${hint}</span>
+      <input type="text" id="editItem${it.id}" value="${fmt(valor)}" oninput="onEditItemChange(${it.id})" onblur="formatarCampoEdit(${it.id})" style="width:120px;text-align:right;font-size:13px;padding:5px 8px">
     </div>`;
   }).join('');
 
   g('editModalBody').innerHTML = body;
   recalcEdicaoLote();
   g('editModal').style.display='flex';
+}
+
+function getEditVal(id){
+  const el = g('editItem'+id);
+  return el ? parseBR(el.value) : 0;
+}
+function setEditVal(id, v){
+  const el = g('editItem'+id);
+  if(el) el.value = fmt(round2(v));
+}
+
+function onEditItemChange(changedId){
+  // Propaga as regras dependentes, igual à viabilidade individual
+  // Item 1 (projeção/recebimento) afeta: item2 (RET 4%), item4 (comissão 5%), item13 (ITBI revenda)
+  // Item 5 (liquidação CEF) afeta: item3 (crédito RET 4%)
+  ITEMS.forEach(it=>{
+    if(it.id === changedId) return; // não sobrescreve o campo que o usuário está digitando
+    if(it.tipo === 'calc'){
+      // recalcula só se a base mudou (ou sempre, é barato)
+      const baseVal = getEditVal(it.base);
+      setEditVal(it.id, Math.abs(baseVal) * (it.pct/100));
+    } else if(it.tipo === 'pct'){
+      // pct é sobre a projeção de venda = item 1
+      const vv = getEditVal(1);
+      setEditVal(it.id, vv * (it.pct/100));
+    } else if(it.tipo === 'itbiRevenda'){
+      const vv = getEditVal(1);
+      setEditVal(it.id, calcItbiRevenda(vv));
+    }
+  });
+  recalcEdicaoLote();
+}
+
+function formatarCampoEdit(id){
+  const el = g('editItem'+id);
+  if(el) el.value = fmt(round2(parseBR(el.value)));
 }
 
 function recalcEdicaoLote(){
