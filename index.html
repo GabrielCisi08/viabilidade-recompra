@@ -424,7 +424,7 @@ const ITEMS = [
   {id:10, col:24,  desc:"(-) Cota condominial em atraso + Acrescer 02 Cotas até a Entrega",                                   sinal:-1, tipo:'col', abrev:"Cota\ncondom."},
   {id:11, col:25,  desc:"(-) Tarifa Avaliação de Bens Recebidos em Garantia — Unidade em Construção ou Concluída",            sinal:-1, tipo:'col', abrev:"Tarifa\naval."},
   {id:12, col:null,desc:"(-) TCCAV — Tarifa de Cobertura de Custos à Vista — Contrato de PF — Pessoa Física",                 sinal:-1, tipo:'fixo', fixo:300, abrev:"TCCAV"},
-  {id:13, col:28,  desc:"(-) ITBI — Revenda (Teto R$ 120.968,00 x 0,50% + Dif. CV x 3%)",                                    sinal:-1, tipo:'col', abrev:"ITBI\nRevenda"},
+  {id:13, col:null,desc:"(-) ITBI — Revenda (Teto R$ 120.968,00 x 0,50% + Dif. CV x 3%)",                                    sinal:-1, tipo:'itbiRevenda', abrev:"ITBI\nRevenda"},
   {id:14, col:29,  desc:"(-) Emolumentos cartorários para registro da escritura fiduciária — Revenda",                        sinal:-1, tipo:'col', abrev:"Emol. fid.\nRevenda"},
   {id:15, col:null,desc:"(-) Reparos de unidade",                                                                             sinal:-1, tipo:'fixo', fixo:0, abrev:"Reparos"},
   {id:16, col:18,  desc:"(-) Restituição parcial ou total dos valores pagos c/ recursos próprios pelo(a) cliente",            sinal:-1, tipo:'col', abrev:"Restituição"},
@@ -435,6 +435,7 @@ function fmt(v){
   if(v===null||v===undefined||v==='')return '0,00';
   return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
+function round2(n){ return Math.round((Number(n)+Number.EPSILON)*100)/100; }
 function parseBR(s){
   if(!s&&s!==0)return 0;
   return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0;
@@ -500,8 +501,9 @@ function onValorVendaChange(){
   ITEMS.forEach(it=>{
     const el = g('item'+it.id);
     if(!el) return;
-    if(it.id === 1){ el.value = fmt(vv); }
-    else if(it.tipo === 'pct'){ el.value = fmt(vv * (it.pct/100)); }
+    if(it.id === 1){ el.value = fmt(round2(vv)); }
+    else if(it.tipo === 'pct'){ el.value = fmt(round2(vv * (it.pct/100))); }
+    else if(it.tipo === 'itbiRevenda'){ el.value = fmt(round2(calcItbiRevenda(vv))); }
   });
   aplicarCalc();
   calcular();
@@ -740,8 +742,10 @@ function preencherDados(row){
       val = valorVenda * (it.pct/100);
     } else if(it.tipo === 'fixo'){
       val = it.fixo;
+    } else if(it.tipo === 'itbiRevenda'){
+      val = calcItbiRevenda(valorVenda);
     }
-    if(it.tipo !== 'calc') el.value = fmt(val);
+    if(it.tipo !== 'calc') el.value = fmt(round2(val));
   });
   // 2ª passada: calc (depende de outros itens já preenchidos)
   aplicarCalc();
@@ -751,14 +755,13 @@ function preencherDados(row){
 }
 
 function aplicarCalc(){
-  // Calcula itens do tipo 'calc' (% sobre o valor de outro item)
   ITEMS.forEach(it=>{
     if(it.tipo !== 'calc') return;
     const el = g('item'+it.id);
     const baseEl = g('item'+it.base);
     if(!el || !baseEl) return;
     const baseVal = parseBR(baseEl.value);
-    el.value = fmt(Math.abs(baseVal) * (it.pct/100));
+    el.value = fmt(round2(Math.abs(baseVal) * (it.pct/100)));
   });
 }
 
@@ -772,10 +775,23 @@ function calcularResultado(vv, saldoCEF, inadCaixa, cfg){
          - inadCaixa - cfg.avaliacao - cfg.tccav - itbiRev - cfg.emolFiduciaria2;
 }
 
+function calcItbiRevenda(item1){
+  // SE(item1 >= 245527,77; (item1-120968)*3% + 120968*0,5%; 0)
+  const v = (typeof item1 === 'number') ? item1 : parseBR(String(item1));
+  if(v >= 245527.77){
+    return (v - 120968) * 0.03 + 120968 * 0.005;
+  }
+  return 0;
+}
+
+var _loteOverrides = {}; // { unidadeKey: { itemId: valorEditado } }
+
 function calcularItensRow(row){
   // Retorna {items:[{id,desc,valor,sinal}], total} para uma linha da base
   const raw = row['_raw']||[];
   const vv = row['VALOR_VENDA']||0;
+  const uKey = row['UNIDADE']||'';
+  const ov = _loteOverrides[uKey] || null;
   const vals = {};
   // 1ª passada
   ITEMS.forEach(it=>{
@@ -783,20 +799,30 @@ function calcularItensRow(row){
     if(it.tipo==='col' && it.col!==null) v = Math.abs(parseNum(raw[it.col]));
     else if(it.tipo==='pct') v = vv*(it.pct/100);
     else if(it.tipo==='fixo') v = it.fixo;
-    vals[it.id] = v;
+    else if(it.tipo==='itbiRevenda') v = calcItbiRevenda(vv);
+    vals[it.id] = round2(v);
   });
   // 2ª passada: calc
   ITEMS.forEach(it=>{
     if(it.tipo==='calc'){
-      vals[it.id] = Math.abs(vals[it.base]||0)*(it.pct/100);
+      vals[it.id] = round2(Math.abs(vals[it.base]||0)*(it.pct/100));
     }
   });
+  // 3ª passada: aplica overrides editados manualmente (sobrescreve qualquer regra)
+  if(ov){
+    ITEMS.forEach(it=>{
+      const o = ov[it.id];
+      if(o!==undefined && o!==null && o!==''){
+        vals[it.id] = round2(typeof o === 'number' ? o : parseBR(String(o)));
+      }
+    });
+  }
   let total = 0;
   const items = ITEMS.map(it=>{
     total += it.sinal===1 ? vals[it.id] : -vals[it.id];
-    return {id:it.id, desc:it.desc, valor:vals[it.id], sinal:it.sinal};
+    return {id:it.id, desc:it.desc, valor:vals[it.id], sinal:it.sinal, editado: ov && ov[it.id]!==undefined};
   });
-  return {items, total};
+  return {items, total:round2(total), temOverride: !!ov};
 }
 
 function processarLote(){
@@ -814,16 +840,20 @@ function processarLote(){
 
   const viaveis = loteResults.filter(r=>r._viavel).length;
 
-  const rows = loteResults.map(r=>`
+  const rows = loteResults.map(r=>{
+    const uKey = (r['UNIDADE']||'').replace(/'/g,"\\'");
+    const editado = _loteOverrides[r['UNIDADE']] ? '<span title="Ajustado manualmente" style="color:var(--blue);font-size:10px"> ✎</span>' : '';
+    return `
     <tr>
       <td>${r['NOME']||'—'}</td>
-      <td>${r['UNIDADE']||'—'}</td>
+      <td>${r['UNIDADE']||'—'}${editado}</td>
       <td>${r['EMPREENDIMENTO']||'—'}</td>
       <td style="text-align:right">R$ ${fmt(r._vv)}</td>
       <td style="text-align:right;font-weight:500;color:${r._viavel?'var(--green)':'var(--red)'}">
         ${r._viavel?'✓':'✗'} R$ ${fmt(r._resultado)}
       </td>
-    </tr>`).join('');
+      <td style="text-align:center"><button onclick="abrirEdicaoLote('${uKey}')" title="Editar valores" style="padding:3px 7px;font-size:13px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer">✏️</button></td>
+    </tr>`;}).join('');
 
   g('loteResult').innerHTML = `
     <div class="stat-grid">
@@ -838,6 +868,7 @@ function processarLote(){
             <th>Cliente</th><th>Unidade</th><th>Empreendimento</th>
             <th style="text-align:right">Receita</th>
             <th style="text-align:right">Lucro Viabilidade</th>
+            <th style="text-align:center;width:40px">Editar</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -964,6 +995,7 @@ function gerarPDF(){
 </div>
 
 <script>window.onload=()=>{window.print()}<\/script>
+
 </body></html>`;
 
   const blob = new Blob([html],{type:'text/html;charset=utf-8'});
@@ -1161,6 +1193,74 @@ document.addEventListener('click', function(e){
     }
   });
 });
+
+
+// ── Edição manual de unidade no lote ─────────────────────────────────────────
+var _editUnidadeKey = null;
+
+function abrirEdicaoLote(uKey){
+  const row = csvData.find(r=>(r['UNIDADE']||'')===uKey);
+  if(!row){ alert('Unidade não encontrada.'); return; }
+  _editUnidadeKey = uKey;
+  const calc = calcularItensRow(row);
+
+  g('editModalTitle').textContent = uKey;
+  g('editModalSub').textContent = [row['EMPREENDIMENTO'], row['NOME']].filter(Boolean).join(' · ');
+
+  // monta campos editáveis dos 16 itens
+  const body = ITEMS.map((it,idx)=>{
+    const valor = calc.items[idx].valor;
+    const sinalTxt = it.sinal===1 ? '+' : '−';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--border)">
+      <span style="width:22px;color:var(--text-faint);font-size:12px">${it.id}</span>
+      <span style="flex:1;font-size:12px;line-height:1.3">${sinalTxt} ${it.desc}</span>
+      <input type="text" id="editItem${it.id}" value="${fmt(valor)}" oninput="recalcEdicaoLote()" style="width:120px;text-align:right;font-size:13px;padding:5px 8px">
+    </div>`;
+  }).join('');
+
+  g('editModalBody').innerHTML = body;
+  recalcEdicaoLote();
+  g('editModal').style.display='flex';
+}
+
+function recalcEdicaoLote(){
+  let total = 0;
+  ITEMS.forEach(it=>{
+    const el = g('editItem'+it.id);
+    const v = el ? parseBR(el.value) : 0;
+    total += it.sinal===1 ? v : -v;
+  });
+  total = round2(total);
+  const el = g('editModalTotal');
+  if(el){
+    el.textContent = 'R$ ' + fmt(total);
+    el.style.color = total>=0 ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+function salvarEdicaoLote(){
+  if(!_editUnidadeKey) return;
+  const ov = {};
+  ITEMS.forEach(it=>{
+    const el = g('editItem'+it.id);
+    if(el) ov[it.id] = parseBR(el.value);
+  });
+  _loteOverrides[_editUnidadeKey] = ov;
+  fecharEdicaoLote();
+  processarLote(); // re-renderiza a tabela com o ajuste
+}
+
+function resetEdicaoLote(){
+  if(!_editUnidadeKey) return;
+  delete _loteOverrides[_editUnidadeKey];
+  // recarrega o modal com valores originais
+  abrirEdicaoLote(_editUnidadeKey);
+}
+
+function fecharEdicaoLote(){
+  g('editModal').style.display='none';
+  _editUnidadeKey = null;
+}
 
 // ── Exportação detalhada do lote (PDF paisagem + Excel) ──────────────────────
 function getLoteFiltrado(){
@@ -1418,5 +1518,23 @@ document.addEventListener('click',function(e){
   if(wrap && !wrap.contains(e.target)) closeCS();
 });
 </script>
+<!-- Modal de edição de unidade no lote -->
+  <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9998;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);border-radius:var(--radius-lg);max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+      <div style="position:sticky;top:0;background:var(--surface);padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;z-index:2">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--text)" id="editModalTitle">Editar unidade</div>
+          <div style="font-size:12px;color:var(--text-muted)" id="editModalSub"></div>
+        </div>
+        <button onclick="fecharEdicaoLote()" style="font-size:20px;background:none;border:none;cursor:pointer;color:var(--text-muted);line-height:1">✕</button>
+      </div>
+      <div style="padding:16px 20px" id="editModalBody"></div>
+      <div style="position:sticky;bottom:0;background:var(--surface);padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+        <div style="flex:1;font-size:14px">Lucro: <b id="editModalTotal" style="font-size:16px">R$ 0,00</b></div>
+        <button onclick="resetEdicaoLote()" style="font-size:13px">Restaurar original</button>
+        <button class="primary" onclick="salvarEdicaoLote()" style="font-size:13px">Salvar ajustes</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
