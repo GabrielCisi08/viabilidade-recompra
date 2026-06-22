@@ -75,7 +75,7 @@ table.calc tr.total-row td{font-weight:600;background:#f9f9f7;font-size:14px}
 table.calc tr:last-child td{border-bottom:none}
 .result-block{background:var(--bg);border-radius:var(--radius);padding:16px 20px;margin-top:16px;display:flex;align-items:center;justify-content:space-between}
 .result-block .lbl{font-size:12px;color:var(--text-muted)}
-.result-block .val{font-size:28px;font-weight:700}
+.result-block .val{font-size:28px;font-weight:700;white-space:nowrap}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500}
 .badge.ok{background:var(--green-light);color:var(--green)}
 .badge.fail{background:var(--red-light);color:var(--red)}
@@ -265,7 +265,7 @@ input[type=file]{display:none}
             <tfoot>
               <tr class="total-row">
                 <td colspan="2" style="padding:10px;font-size:13px">(=) LUCRO / RESULTADO DA TRANSAÇÃO</td>
-                <td class="num" id="totalCell" style="padding:10px;font-size:15px">0,00</td>
+                <td class="num" id="totalCell" style="padding:10px;font-size:15px;white-space:nowrap">0,00</td>
               </tr>
             </tfoot>
           </table>
@@ -876,8 +876,8 @@ function processarLote(){
       <td>${r['NOME']||'—'}</td>
       <td>${r['UNIDADE']||'—'}${editado}</td>
       <td>${r['EMPREENDIMENTO']||'—'}</td>
-      <td style="text-align:right">R$ ${fmt(r._vv)}</td>
-      <td style="text-align:right;font-weight:500;color:${r._viavel?'var(--green)':'var(--red)'}">
+      <td style="text-align:right;white-space:nowrap">R$ ${fmt(r._vv)}</td>
+      <td style="text-align:right;font-weight:500;white-space:nowrap;color:${r._viavel?'var(--green)':'var(--red)'}">
         ${r._viavel?'✓':'✗'} R$ ${fmt(r._resultado)}
       </td>
       <td style="text-align:center"><button onclick="abrirEdicaoLote('${uKey}')" title="Editar valores" style="padding:3px 7px;font-size:13px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer">✏️</button></td>
@@ -931,6 +931,10 @@ function gerarPDF(){
     : new Date().toLocaleDateString('pt-BR');
   const vv = g('valorVenda').value||'0,00';
   const total = g('resultValue').textContent||'R$ 0,00';
+  // valor numérico real do lucro (para decidir a cor corretamente)
+  let totalNum = 0;
+  ITEMS.forEach(it=>{ const el=g('item'+it.id); const v=el?parseBR(el.value):0; totalNum += it.sinal===1?v:-v; });
+  totalNum = round2(totalNum);
 
   const linhas = ITEMS.map(it=>{
     const el = g('item'+it.id);
@@ -1008,7 +1012,7 @@ function gerarPDF(){
   <tfoot>
     <tr class="total-row">
       <td style="padding:9px 8px" colspan="2">(=) LUCRO / RESULTADO DA TRANSAÇÃO</td>
-      <td style="padding:9px 8px;text-align:right;font-size:14px;color:${parseBR(total)>=0?'#1a7d1a':'#a32d2d'}">${total}</td>
+      <td style="padding:9px 8px;text-align:right;font-size:14px;white-space:nowrap;color:${totalNum>=0?'#1a7d1a':'#a32d2d'}">${total}</td>
     </tr>
   </tfoot>
 </table>
