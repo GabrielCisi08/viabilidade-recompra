@@ -1414,6 +1414,7 @@ function exportarLotePDF(){
   const shortHeaders = ITEMS.map(it=>it.abrev || ('Item '+it.id));
   const dataRows = filtered.map(row=>{
     const calc = calcularItensRow(row);
+    const totalGasto = calc.items.reduce((s,i)=> s + (i.sinal===-1 ? i.valor : 0), 0);
     return {
       unidade: row['UNIDADE']||'',
       nome: row['NOME']||'',
@@ -1421,6 +1422,7 @@ function exportarLotePDF(){
       metragem: row['AREA']||'',
       chaves: row['CHAVES']||'',
       itens: calc.items.map(i=>i.valor),
+      totalGasto: totalGasto,
       total: calc.total
     };
   }).sort((a,b)=>b.total-a.total);
@@ -1458,6 +1460,7 @@ function exportarLotePDF(){
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;color:#555">${r.tipologia}</td>
       <td style="padding:3px 8px;font-size:8px;text-align:right;color:#555">${r.metragem}</td>
       ${itemCells}
+      <td style="padding:3px 8px;font-size:8px;text-align:right;font-weight:600;color:#a32d2d;background:rgba(122,20,20,.04)">${fmt(r.totalGasto)}</td>
       <td style="padding:3px 8px;font-size:8px;text-align:right;font-weight:700;color:${tColor};background:rgba(158,27,27,.03);border-left:2px solid #f0eaea">${fmt(r.total)}</td>
     </tr>`;
   }).join('');
@@ -1465,6 +1468,7 @@ function exportarLotePDF(){
   // Linha de totais — soma de cada item + lucro
   const colTotais = ITEMS.map((it,idx)=> dataRows.reduce((s,r)=> s + (r.itens[idx]||0), 0));
   const totalGeral = dataRows.reduce((s,r)=> s + r.total, 0);
+  const totalGastoGeral = dataRows.reduce((s,r)=> s + r.totalGasto, 0);
   const totItemCells = colTotais.map((v,idx)=>{
     const sinal = ITEMS[idx].sinal;
     const color = sinal===1 ? '#1a7d1a' : '#a32d2d';
@@ -1473,6 +1477,7 @@ function exportarLotePDF(){
   const tfootRow = `<tr style="background:#f7f1f1">
     <td colspan="4" style="padding:6px 8px;font-size:9px;font-weight:700;color:#9E1B1B;border-top:2px solid #9E1B1B">TOTAL (${dataRows.length} unidades)</td>
     ${totItemCells}
+    <td style="padding:6px 8px;font-size:9px;text-align:right;font-weight:700;white-space:nowrap;color:#a32d2d;background:#f3e9e9 !important;border-top:2px solid #9E1B1B">R$ ${fmt(totalGastoGeral)}</td>
     <td style="padding:6px 8px;font-size:9px;text-align:right;font-weight:700;white-space:nowrap;color:${totalGeral>=0?'#1a7d1a':'#a32d2d'};background:#f3e9e9 !important;border-top:2px solid #9E1B1B;border-left:2px solid #fff">R$ ${fmt(totalGeral)}</td>
   </tr>`;
 
@@ -1538,6 +1543,7 @@ function exportarLotePDF(){
     <th style="padding:5px 8px;font-size:8px;text-align:left">Tipologia / Cat. Uso</th>
     <th style="padding:5px 8px;font-size:8px;text-align:right">Metragem</th>
     ${headCols}
+    <th style="padding:5px 8px;font-size:8px;text-align:right;background:#7a1414 !important">Total\nGasto</th>
     <th style="padding:5px 8px;font-size:8px;text-align:right;background:#6B1010 !important;border-left:2px solid #fff">LUCRO</th>
   </tr></thead>
   <tbody>${bodyRows}</tbody>
@@ -1565,7 +1571,7 @@ function exportarLoteExcel(){
   const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   // Cabeçalhos
-  const headers = ['Unidade','Cliente','Tipologia / Cat. Uso','Metragem','Chaves', ...ITEMS.map(it=>it.desc), 'LUCRO / RESULTADO'];
+  const headers = ['Unidade','Cliente','Tipologia / Cat. Uso','Metragem','Chaves', ...ITEMS.map(it=>it.desc), 'TOTAL GASTO', 'LUCRO / RESULTADO'];
   const headerCells = headers.map(hd=>
     `<Cell ss:StyleID="hdr"><Data ss:Type="String">${esc(hd)}</Data></Cell>`
   ).join('');
@@ -1582,9 +1588,11 @@ function exportarLoteExcel(){
       const v = i.sinal===1 ? i.valor : -i.valor;
       return `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.toFixed(2)}</Data></Cell>`;
     }).join('');
+    const totalGastoRow = calc.items.reduce((s,i)=> s + (i.sinal===-1 ? i.valor : 0), 0);
+    const gastoCell = `<Cell ss:StyleID="gasto"><Data ss:Type="Number">${totalGastoRow.toFixed(2)}</Data></Cell>`;
     const totalStyle = calc.total>=0 ? 'totalPos' : 'totalNeg';
     const totalCell = `<Cell ss:StyleID="${totalStyle}"><Data ss:Type="Number">${calc.total.toFixed(2)}</Data></Cell>`;
-    return `<Row>${txtCells}${numCells}${totalCell}</Row>`;
+    return `<Row>${txtCells}${numCells}${gastoCell}${totalCell}</Row>`;
   }).join('');
 
   // Linha de totais (soma de cada item + lucro), respeitando o sinal usado nas células
@@ -1598,9 +1606,12 @@ function exportarLoteExcel(){
   const totLabel = `<Cell ss:StyleID="totLabel"><Data ss:Type="String">TOTAL (${sortedFiltered.length} unidades)</Data></Cell>` +
                    `<Cell ss:StyleID="totLabel"><Data ss:Type="String"></Data></Cell>`.repeat(4);
   const totNums = somaItens.map(v=>`<Cell ss:StyleID="totNum"><Data ss:Type="Number">${v.toFixed(2)}</Data></Cell>`).join('');
+  let somaGasto = 0;
+  sortedFiltered.forEach(row=>{ calcularItensRow(row).items.forEach(i=>{ if(i.sinal===-1) somaGasto += i.valor; }); });
+  const totGasto = `<Cell ss:StyleID="totGastoGrand"><Data ss:Type="Number">${somaGasto.toFixed(2)}</Data></Cell>`;
   const totFinalStyle = somaTotal>=0 ? 'totGrandPos' : 'totGrandNeg';
   const totFinal = `<Cell ss:StyleID="${totFinalStyle}"><Data ss:Type="Number">${somaTotal.toFixed(2)}</Data></Cell>`;
-  const totalRow = `<Row>${totLabel}${totNums}${totFinal}</Row>`;
+  const totalRow = `<Row>${totLabel}${totNums}${totGasto}${totFinal}</Row>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
@@ -1618,6 +1629,8 @@ function exportarLoteExcel(){
   <Style ss:ID="totNum"><Font ss:Bold="1" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#F7F1F1" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#9E1B1B"/></Borders></Style>
   <Style ss:ID="totGrandPos"><Font ss:Bold="1" ss:Color="#1A7D1A" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#F3E9E9" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#9E1B1B"/></Borders></Style>
   <Style ss:ID="totGrandNeg"><Font ss:Bold="1" ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#F3E9E9" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#9E1B1B"/></Borders></Style>
+  <Style ss:ID="gasto"><Font ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#FBF3F3" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="totGastoGrand"><Font ss:Bold="1" ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#F3E9E9" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#9E1B1B"/></Borders></Style>
 </Styles>
 <Worksheet ss:Name="Viabilidade Lote">
 <Table>
