@@ -812,7 +812,8 @@ function calcItbiRevenda(item1){
   return 0;
 }
 
-var _loteOverrides = {}; // { unidadeKey: { itemId: valorEditado } }
+var _loteOverrides = {};
+var _loteRecomprado = {}; // { unidadeKey: true/false } — marcação de recompra (sessão) // { unidadeKey: { itemId: valorEditado } }
 
 function calcularItensRow(row){
   // Retorna {items:[{id,desc,valor,sinal}], total} para uma linha da base
@@ -871,10 +872,11 @@ function processarLote(){
   const rows = loteResults.map(r=>{
     const uKey = (r['UNIDADE']||'').replace(/'/g,"\\'");
     const editado = _loteOverrides[r['UNIDADE']] ? '<span title="Ajustado manualmente" style="color:var(--blue);font-size:10px"> ✎</span>' : '';
+    const recBadge = _loteRecomprado[r['UNIDADE']] ? '<span title="Já recomprada" style="display:inline-block;background:#1a7d1a;color:#fff;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;margin-left:5px;vertical-align:middle">RECOMPRADA</span>' : '';
     return `
     <tr>
       <td>${r['NOME']||'—'}</td>
-      <td>${r['UNIDADE']||'—'}${editado}</td>
+      <td>${r['UNIDADE']||'—'}${editado}${recBadge}</td>
       <td>${r['EMPREENDIMENTO']||'—'}</td>
       <td style="text-align:right;white-space:nowrap">R$ ${fmt(r._vv)}</td>
       <td style="text-align:right;font-weight:500;white-space:nowrap;color:${r._viavel?'var(--green)':'var(--red)'}">
@@ -1294,6 +1296,20 @@ function abrirEdicaoLote(uKey){
   g('editModalTitle').textContent = uKey;
   g('editModalSub').textContent = [row['EMPREENDIMENTO'], row['NOME']].filter(Boolean).join(' · ');
 
+  // Interruptor de "já recomprado"
+  const isRec = !!_loteRecomprado[uKey];
+  const switchHtml = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin-bottom:12px;background:${isRec?'#eef7ee':'#f7f7f5'};border:1px solid ${isRec?'#bfe0bf':'var(--border)'};border-radius:10px;transition:all .2s">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text)">Unidade já recomprada</div>
+      <div style="font-size:11px;color:var(--text-muted)">Marca esta unidade como recompra concluída no PDF e Excel</div>
+    </div>
+    <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:pointer;flex-shrink:0">
+      <input type="checkbox" id="switchRecomprado" ${isRec?'checked':''} onchange="toggleRecomprado()" style="opacity:0;width:0;height:0">
+      <span id="switchTrack" style="position:absolute;inset:0;background:${isRec?'#1a7d1a':'#ccc'};border-radius:26px;transition:.2s"></span>
+      <span id="switchKnob" style="position:absolute;left:${isRec?'23px':'3px'};top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+    </label>
+  </div>`;
+
   // monta campos editáveis dos 16 itens
   const body = ITEMS.map((it,idx)=>{
     const valor = calc.items[idx].valor;
@@ -1308,7 +1324,7 @@ function abrirEdicaoLote(uKey){
     </div>`;
   }).join('');
 
-  g('editModalBody').innerHTML = body;
+  g('editModalBody').innerHTML = switchHtml + body;
   recalcEdicaoLote();
   g('editModal').style.display='flex';
 }
@@ -1349,6 +1365,15 @@ function formatarCampoEdit(id){
   if(el) el.value = fmt(round2(parseBR(el.value)));
 }
 
+function toggleRecomprado(){
+  const chk = g('switchRecomprado');
+  if(!chk) return;
+  const on = chk.checked;
+  const track = g('switchTrack'); const knob = g('switchKnob');
+  if(track) track.style.background = on ? '#1a7d1a' : '#ccc';
+  if(knob) knob.style.left = on ? '23px' : '3px';
+}
+
 function recalcEdicaoLote(){
   let total = 0;
   ITEMS.forEach(it=>{
@@ -1372,6 +1397,12 @@ function salvarEdicaoLote(){
     if(el) ov[it.id] = parseBR(el.value);
   });
   _loteOverrides[_editUnidadeKey] = ov;
+  // salva marcação de recompra
+  const chk = g('switchRecomprado');
+  if(chk){
+    if(chk.checked) _loteRecomprado[_editUnidadeKey] = true;
+    else delete _loteRecomprado[_editUnidadeKey];
+  }
   fecharEdicaoLote();
   processarLote(); // re-renderiza a tabela com o ajuste
 }
@@ -1416,6 +1447,7 @@ function exportarLotePDF(){
     const calc = calcularItensRow(row);
     const totalGasto = calc.items.reduce((s,i)=> s + (i.sinal===-1 ? i.valor : 0), 0);
     return {
+      recomprado: !!_loteRecomprado[row['UNIDADE']],
       unidade: row['UNIDADE']||'',
       nome: row['NOME']||'',
       tipologia: [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / '),
@@ -1454,8 +1486,10 @@ function exportarLotePDF(){
     if(r.total < cfgPDF.thMin) classColor = '#a32d2d';        // Inviável
     else if(r.total < cfgPDF.thAlert) classColor = '#ba7517'; // Atenção
     else classColor = '#1a7d1a';                              // Viável
-    return `<tr>
-      <td style="padding:0;font-size:8px;font-weight:600;white-space:nowrap;color:#1a1a18;position:relative"><span style="display:flex;align-items:stretch"><span style="width:5px;background:${classColor};flex-shrink:0;box-shadow:-1px 0 2px rgba(0,0,0,.18)"></span><span style="padding:3px 8px">${r.unidade}</span></span></td>
+    const recBg = r.recomprado ? 'background:#eef7ee !important;' : '';
+    const recTag = r.recomprado ? '<span style="font-size:6.5px;color:#3b6d11;font-weight:600;font-style:italic;margin-left:4px">recomprado</span>' : '';
+    return `<tr style="${recBg}">
+      <td style="padding:0;font-size:8px;font-weight:600;white-space:nowrap;color:#1a1a18;position:relative;${recBg}"><span style="display:flex;align-items:stretch"><span style="width:5px;background:${classColor};flex-shrink:0;box-shadow:-1px 0 2px rgba(0,0,0,.18)"></span><span style="padding:3px 8px">${r.unidade}${recTag}</span></span></td>
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;color:#555">${r.nome}</td>
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;color:#555">${r.tipologia}</td>
       <td style="padding:3px 8px;font-size:8px;text-align:right;color:#555">${r.metragem}</td>
@@ -1475,7 +1509,7 @@ function exportarLotePDF(){
     return `<td style="padding:5px 5px;font-size:8px;text-align:right;font-weight:700;color:${v===0?'#bbb':color};border-top:2px solid #9E1B1B">${v===0?'—':fmt(v)}</td>`;
   }).join('');
   const tfootRow = `<tr style="background:#f7f1f1">
-    <td colspan="4" style="padding:6px 8px;font-size:9px;font-weight:700;color:#9E1B1B;border-top:2px solid #9E1B1B">TOTAL (${dataRows.length} unidades)</td>
+    <td colspan="5" style="padding:6px 8px;font-size:9px;font-weight:700;color:#9E1B1B;border-top:2px solid #9E1B1B">TOTAL (${dataRows.length} unidades)</td>
     ${totItemCells}
     <td style="padding:6px 8px;font-size:9px;text-align:right;font-weight:700;white-space:nowrap;color:#a32d2d;background:#f3e9e9 !important;border-top:2px solid #9E1B1B">R$ ${fmt(totalGastoGeral)}</td>
     <td style="padding:6px 8px;font-size:9px;text-align:right;font-weight:700;white-space:nowrap;color:${totalGeral>=0?'#1a7d1a':'#a32d2d'};background:#f3e9e9 !important;border-top:2px solid #9E1B1B;border-left:2px solid #fff">R$ ${fmt(totalGeral)}</td>
@@ -1581,16 +1615,20 @@ function exportarLoteExcel(){
   const dataRows = sortedFiltered.map(row=>{
     const calc = calcularItensRow(row);
     const tipo = [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / ');
-    const txtCells = [row['UNIDADE']||'', row['NOME']||'', tipo, row['AREA']||'', row['CHAVES']||''].map(v=>
-      `<Cell><Data ss:Type="String">${esc(v)}</Data></Cell>`
+    const isRec = !!_loteRecomprado[row['UNIDADE']];
+    const unidTxt = isRec ? (row['UNIDADE']||'') + '  • recomprado' : (row['UNIDADE']||'');
+    const txtStyle = isRec ? ' ss:StyleID="recTxt"' : '';
+    const txtVals = [unidTxt, row['NOME']||'', tipo, row['AREA']||'', row['CHAVES']||''];
+    const txtCells = txtVals.map(v=>
+      `<Cell${txtStyle}><Data ss:Type="String">${esc(v)}</Data></Cell>`
     ).join('');
     const numCells = calc.items.map(i=>{
       const v = i.sinal===1 ? i.valor : -i.valor;
-      return `<Cell ss:StyleID="num"><Data ss:Type="Number">${v.toFixed(2)}</Data></Cell>`;
+      return `<Cell ss:StyleID="${isRec?'numRec':'num'}"><Data ss:Type="Number">${v.toFixed(2)}</Data></Cell>`;
     }).join('');
     const totalGastoRow = calc.items.reduce((s,i)=> s + (i.sinal===-1 ? i.valor : 0), 0);
-    const gastoCell = `<Cell ss:StyleID="gasto"><Data ss:Type="Number">${totalGastoRow.toFixed(2)}</Data></Cell>`;
-    const totalStyle = calc.total>=0 ? 'totalPos' : 'totalNeg';
+    const gastoCell = `<Cell ss:StyleID="${isRec?'gastoRec':'gasto'}"><Data ss:Type="Number">${totalGastoRow.toFixed(2)}</Data></Cell>`;
+    const totalStyle = (calc.total>=0 ? 'totalPos' : 'totalNeg') + (isRec ? 'Rec' : '');
     const totalCell = `<Cell ss:StyleID="${totalStyle}"><Data ss:Type="Number">${calc.total.toFixed(2)}</Data></Cell>`;
     return `<Row>${txtCells}${numCells}${gastoCell}${totalCell}</Row>`;
   }).join('');
@@ -1631,6 +1669,11 @@ function exportarLoteExcel(){
   <Style ss:ID="totGrandNeg"><Font ss:Bold="1" ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#F3E9E9" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#9E1B1B"/></Borders></Style>
   <Style ss:ID="gasto"><Font ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#FBF3F3" ss:Pattern="Solid"/></Style>
   <Style ss:ID="totGastoGrand"><Font ss:Bold="1" ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#F3E9E9" ss:Pattern="Solid"/><Borders><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#9E1B1B"/></Borders></Style>
+  <Style ss:ID="recTxt"><Font ss:Size="9" ss:Color="#2f6b2f"/><Interior ss:Color="#EEF7EE" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="numRec"><NumberFormat ss:Format="#,##0.00"/><Font ss:Size="9"/><Interior ss:Color="#EEF7EE" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="gastoRec"><Font ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#EEF7EE" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="totalPosRec"><Font ss:Bold="1" ss:Color="#1A7D1A" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#EEF7EE" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="totalNegRec"><Font ss:Bold="1" ss:Color="#A32D2D" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Interior ss:Color="#EEF7EE" ss:Pattern="Solid"/></Style>
 </Styles>
 <Worksheet ss:Name="Viabilidade Lote">
 <Table>
