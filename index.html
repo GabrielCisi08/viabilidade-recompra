@@ -592,9 +592,13 @@ function finishTopLoader(){
   setTimeout(()=>{ bar.style.opacity='0'; setTimeout(()=>{ bar.style.width='0'; }, 400); }, 200);
 }
 
+var _loadEmAndamento = false;
 function loadFromSheet(tentativa){
   tentativa = tentativa || 1;
   const MAX_TENTATIVAS = 3;
+  // Evita requisições sobrepostas (segunda chamada enquanto a primeira roda)
+  if(tentativa === 1 && _loadEmAndamento) return;
+  _loadEmAndamento = true;
   const url = 'https://script.google.com/macros/s/AKfycbx8kTGGSNXmDAEef_YGyv4k0gczthSxBvMRTYdz4fEUB7vqhrzlPXEgAcPMnLO7f3hy-Q/exec';
   startTopLoader();
   g('syncIcon').textContent='⏳';
@@ -615,9 +619,12 @@ function loadFromSheet(tentativa){
     // Retenta automaticamente antes de desistir
     if(tentativa < MAX_TENTATIVAS){
       cleanup();
-      setTimeout(()=>loadFromSheet(tentativa+1), 1500);
+      const espera = tentativa * 3000; // 3s, 6s — dá tempo do Apps Script 'acordar'
+      if(g('syncSub')) g('syncSub').textContent = 'Reconectando em '+(espera/1000)+'s…';
+      setTimeout(()=>loadFromSheet(tentativa+1), espera);
       return;
     }
+    _loadEmAndamento=false;
     finishTopLoader();
     g('syncIcon').textContent='❌';
     g('syncTitle').textContent='Erro ao carregar';
@@ -632,6 +639,7 @@ function loadFromSheet(tentativa){
     cleanup();
     // Apps Script pode retornar {erro:"..."} em vez dos dados
     if(data && !Array.isArray(data) && data.erro){
+      _loadEmAndamento=false;
       finishTopLoader();
       g('syncIcon').textContent='❌';
       g('syncTitle').textContent='Erro na planilha';
@@ -643,8 +651,9 @@ function loadFromSheet(tentativa){
       falhar('Base vazia, tentando de novo…');
       return;
     }
-    try{ processData(data); }
+    try{ processData(data); _loadEmAndamento=false; }
     catch(err){
+      _loadEmAndamento=false;
       finishTopLoader();
       g('syncIcon').textContent='❌';
       g('syncTitle').textContent='Erro ao processar';
@@ -654,8 +663,7 @@ function loadFromSheet(tentativa){
 
   const script = document.createElement('script');
   script.id = 'jsonpScript';
-  // cache-busting (_t) evita CDN servir resposta velha/vazia
-  script.src = url + '?callback=' + cbName + '&_t=' + Date.now();
+  script.src = url + '?callback=' + cbName;
   script.onerror = function(){
     clearTimeout(timeout);
     falhar('Falha na conexão.');
