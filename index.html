@@ -592,23 +592,18 @@ function finishTopLoader(){
   setTimeout(()=>{ bar.style.opacity='0'; setTimeout(()=>{ bar.style.width='0'; }, 400); }, 200);
 }
 
-function loadFromSheet(){
+function loadFromSheet(tentativa){
+  tentativa = tentativa || 1;
+  const MAX_TENTATIVAS = 3;
   const url = 'https://script.google.com/macros/s/AKfycbx8kTGGSNXmDAEef_YGyv4k0gczthSxBvMRTYdz4fEUB7vqhrzlPXEgAcPMnLO7f3hy-Q/exec';
   startTopLoader();
   g('syncIcon').textContent='⏳';
   g('syncTitle').textContent='Carregando…';
-  if(g('syncSub')) g('syncSub').textContent='Conectando…';
+  if(g('syncSub')) g('syncSub').textContent = tentativa>1 ? ('Tentativa '+tentativa+' de '+MAX_TENTATIVAS+'…') : 'Conectando…';
   if(g('fileStatus')) g('fileStatus').innerHTML='';
 
   // JSONP para contornar CORS do Apps Script
-  const cbName = 'jsonpCallback_' + Date.now();
-  const timeout = setTimeout(()=>{
-    finishTopLoader();
-    g('syncIcon').textContent='❌';
-    g('syncTitle').textContent='Erro ao carregar';
-    if(g('syncSub')) g('syncSub').textContent='Tempo esgotado.';
-    cleanup();
-  }, 30000);
+  const cbName = 'jsonpCallback_' + Date.now() + '_' + tentativa;
 
   function cleanup(){
     delete window[cbName];
@@ -616,27 +611,54 @@ function loadFromSheet(){
     if(s) s.remove();
   }
 
+  function falhar(motivo){
+    // Retenta automaticamente antes de desistir
+    if(tentativa < MAX_TENTATIVAS){
+      cleanup();
+      setTimeout(()=>loadFromSheet(tentativa+1), 1500);
+      return;
+    }
+    finishTopLoader();
+    g('syncIcon').textContent='❌';
+    g('syncTitle').textContent='Erro ao carregar';
+    if(g('syncSub')) g('syncSub').textContent = motivo || 'Tente novamente.';
+    cleanup();
+  }
+
+  const timeout = setTimeout(()=>falhar('Tempo esgotado.'), 60000);
+
   window[cbName] = function(data){
     clearTimeout(timeout);
     cleanup();
+    // Apps Script pode retornar {erro:"..."} em vez dos dados
+    if(data && !Array.isArray(data) && data.erro){
+      finishTopLoader();
+      g('syncIcon').textContent='❌';
+      g('syncTitle').textContent='Erro na planilha';
+      if(g('syncSub')) g('syncSub').textContent = String(data.erro).substring(0,60);
+      return;
+    }
+    // Dados vazios/inválidos → retenta
+    if(!Array.isArray(data) || data.length < 2){
+      falhar('Base vazia, tentando de novo…');
+      return;
+    }
     try{ processData(data); }
     catch(err){
       finishTopLoader();
       g('syncIcon').textContent='❌';
       g('syncTitle').textContent='Erro ao processar';
+      if(g('syncSub')) g('syncSub').textContent = String(err.message||err).substring(0,60);
     }
   };
 
   const script = document.createElement('script');
   script.id = 'jsonpScript';
-  script.src = url + '?callback=' + cbName;
+  // cache-busting (_t) evita CDN servir resposta velha/vazia
+  script.src = url + '?callback=' + cbName + '&_t=' + Date.now();
   script.onerror = function(){
     clearTimeout(timeout);
-    cleanup();
-    finishTopLoader();
-    g('syncIcon').textContent='❌';
-    g('syncTitle').textContent='Erro ao carregar';
-    if(g('syncSub')) g('syncSub').textContent='Falha na conexão.';
+    falhar('Falha na conexão.');
   };
   document.body.appendChild(script);
 }
