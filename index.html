@@ -1428,7 +1428,9 @@ function getLoteFiltrado(){
   const unidSel = getMSSelected('Unid');
   const soViaveis = g('apenasViaveis') && g('apenasViaveis').checked;
   const cfg = getConfig();
-  let filtered = csvData.filter(r=>(r['VALOR_VENDA']>0)||(r['SALDO_VIAB']!==0));
+  // Processa toda unidade identificada (com UNIDADE preenchida), mesmo sem valores.
+  // Só descarta linhas totalmente vazias (sem unidade).
+  let filtered = csvData.filter(r=>(r['UNIDADE']||'').toString().trim() !== '');
   if(baseSel.size) filtered = filtered.filter(r=>baseSel.has(r['BASE']));
   if(empSel.size) filtered = filtered.filter(r=>empSel.has(r['EMPREENDIMENTO']));
   if(faseSel.size) filtered = filtered.filter(r=>faseSel.has(r['FASE']));
