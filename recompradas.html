@@ -230,6 +230,15 @@ input[type=file]{display:none}
           <div class="field">
             <label>Valor de venda atual (R$)</label>
             <input type="text" id="valorVenda" placeholder="0,00" oninput="onValorVendaChange()" onblur="formatarCampo(this);onValorVendaChange()" onkeydown="enterBlur(event)">
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+              <button type="button" id="btnVendaVista" onclick="toggleVendaVista()" style="display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid #d9c9c9;background:#fff;color:#6B1010;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;transition:all .15s">
+                <span id="vvSwitch" style="display:inline-block;width:30px;height:16px;background:#ccc;border-radius:10px;position:relative;transition:background .15s;flex-shrink:0">
+                  <span id="vvKnob" style="position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)"></span>
+                </span>
+                Venda à vista
+              </button>
+              <span id="vvHint" style="font-size:11px;color:#999;display:none">Itens 11 a 14 zerados</span>
+            </div>
           </div>
           <div class="field">
             <label>Data da análise</label>
@@ -511,6 +520,56 @@ function formatarCampo(el){
   el.value = fmt(num);
 }
 
+var _vendaVista = false;
+var _lastRow = null;
+
+function toggleVendaVista(){
+  _vendaVista = !_vendaVista;
+  const sw = g('vvSwitch'), knob = g('vvKnob'), hint = g('vvHint'), btn = g('btnVendaVista');
+  if(_vendaVista){
+    if(sw) sw.style.background = '#1a7d1a';
+    if(knob) knob.style.left = '16px';
+    if(hint) hint.style.display = 'inline';
+    if(btn){ btn.style.background = '#f0f7f0'; btn.style.borderColor = '#9fca9f'; }
+  } else {
+    if(sw) sw.style.background = '#ccc';
+    if(knob) knob.style.left = '2px';
+    if(hint) hint.style.display = 'none';
+    if(btn){ btn.style.background = '#fff'; btn.style.borderColor = '#d9c9c9'; }
+  }
+  // Recalcula tudo aplicando (ou removendo) a regra
+  onValorVendaChange();
+}
+
+// Zera itens 11 a 14 quando "Venda à vista" está ativo. Deve ser chamada
+// APÓS qualquer preenchimento/recálculo desses itens.
+function aplicarVendaVista(){
+  if(_vendaVista){
+    // LIGADO: zera itens 11-14
+    [11,12,13,14].forEach(id=>{
+      const el = g('item'+id);
+      if(el) el.value = fmt(0);
+    });
+  } else {
+    // DESLIGADO: restaura 11-14 aos valores originais da base
+    if(!_lastRow) return;
+    const raw = _lastRow['_raw']||[];
+    const vv = parseBR(g('valorVenda').value||'0');
+    [11,12,13,14].forEach(id=>{
+      const el = g('item'+id);
+      if(!el) return;
+      const it = ITEMS.find(x=>x.id===id);
+      if(!it) return;
+      let val = 0;
+      if(it.tipo==='col' && it.col!==null) val = Math.abs(parseNum(raw[it.col]));
+      else if(it.tipo==='fixo') val = it.fixo;
+      else if(it.tipo==='itbiRevenda') val = calcItbiRevenda(vv);
+      else if(it.tipo==='pct') val = vv*(it.pct/100);
+      el.value = fmt(round2(val));
+    });
+  }
+}
+
 function onValorVendaChange(){
   const vv = parseBR(g('valorVenda').value||'0');
   ITEMS.forEach(it=>{
@@ -521,6 +580,7 @@ function onValorVendaChange(){
     else if(it.tipo === 'itbiRevenda'){ el.value = fmt(round2(calcItbiRevenda(vv))); }
   });
   aplicarCalc();
+  aplicarVendaVista();
   calcular();
 }
 
@@ -777,6 +837,7 @@ function buscarPorUnidade(){
 }
 
 function preencherDados(row){
+  _lastRow = row; // guarda para restaurar itens ao desligar 'venda à vista'
   g('nomeCliente').value = ''; // em branco para digitar o novo cliente (revenda)
   g('unidade').value = row['UNIDADE']||'';
   g('empreendimento').value = row['EMPREENDIMENTO']||'';
@@ -806,6 +867,7 @@ function preencherDados(row){
   });
   // 2ª passada: calc (depende de outros itens já preenchidos)
   aplicarCalc();
+  aplicarVendaVista();
 
   g('matchHint').innerHTML = `<div class="match-hint">✓ Dados carregados · ${row['EMPREENDIMENTO']||''} · Unidade: ${row['UNIDADE']||''} · Chaves: ${row['CHAVES']||'CHAVES COM MC'} · Lucro Sheet: R$ ${fmt(row['SALDO_VIAB']||0)}</div>`;
   calcular();
@@ -961,6 +1023,7 @@ function gerarPDF(){
     ? new Date(g('dataAnalise').value+'T12:00:00').toLocaleDateString('pt-BR')
     : new Date().toLocaleDateString('pt-BR');
   const vv = g('valorVenda').value||'0,00';
+  const seloVV = _vendaVista ? ' <span style="display:inline-block;background:#1a7d1a;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;letter-spacing:.03em">VENDA À VISTA</span>' : '';
   const total = g('resultValue').textContent||'R$ 0,00';
   // valor numérico real do lucro (para decidir a cor corretamente)
   let totalNum = 0;
@@ -1030,7 +1093,7 @@ function gerarPDF(){
 </div>
 
 <div class="section-title">MEMÓRIA DE CÁLCULO</div>
-<div class="vv-row">Valor de Venda Atual: <strong>R$ ${vv}</strong></div>
+<div class="vv-row">Valor de Venda Atual: <strong>R$ ${vv}</strong>${seloVV}</div>
 <table>
   <thead>
     <tr>
