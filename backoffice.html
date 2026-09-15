@@ -845,6 +845,21 @@ function calcItbiRevenda(item1){
 var _loteOverrides = {};
 var _loteRecomprado = {}; // { unidadeKey: true/false } — marcação de recompra (sessão) // { unidadeKey: { itemId: valorEditado } }
 
+var STATUS_RECOMPRADOS = [
+  'RECOMPRA CONCLUÍDA - ASSINADO',
+  'RECOMPRA CONCLUÍDA - EM REGISTRO',
+  'CONCLUÍDO - RECOMPRA CONCLUÍDA'
+].map(function(s){ return s.toUpperCase().replace(/\s+/g,' ').trim(); });
+function statusEhRecomprado(row){
+  if(!row) return false;
+  var fase = String(row['FASE']||'').toUpperCase().replace(/\s+/g,' ').trim();
+  return STATUS_RECOMPRADOS.indexOf(fase) > -1;
+}
+function estaRecomprado(row){
+  var uKey = row ? (row['UNIDADE']||'') : '';
+  return !!_loteRecomprado[uKey] || statusEhRecomprado(row);
+}
+
 function calcularItensRow(row){
   // Retorna {items:[{id,desc,valor,sinal}], total} para uma linha da base
   const raw = row['_raw']||[];
@@ -902,7 +917,7 @@ function processarLote(){
   const rows = loteResults.map(r=>{
     const uKey = (r['UNIDADE']||'').replace(/'/g,"\\'");
     const editado = _loteOverrides[r['UNIDADE']] ? '<span title="Ajustado manualmente" style="color:var(--blue);font-size:10px"> ✎</span>' : '';
-    const recBadge = _loteRecomprado[r['UNIDADE']] ? '<span title="Já recomprada" style="display:inline-block;background:#1a7d1a;color:#fff;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;margin-left:5px;vertical-align:middle">RECOMPRADA</span>' : '';
+    const recBadge = estaRecomprado(r) ? '<span title="Já recomprada" style="display:inline-block;background:#1a7d1a;color:#fff;font-size:8px;font-weight:600;padding:1px 5px;border-radius:8px;margin-left:5px;vertical-align:middle">RECOMPRADA</span>' : '';
     return `
     <tr>
       <td>${r['NOME']||'—'}</td>
@@ -1326,16 +1341,21 @@ function abrirEdicaoLote(uKey){
   g('editModalTitle').textContent = uKey;
   g('editModalSub').textContent = [row['EMPREENDIMENTO'], row['NOME']].filter(Boolean).join(' · ');
 
-  // Interruptor de "já recomprado"
-  const isRec = !!_loteRecomprado[uKey];
+  // Interruptor de "já recomprado" — auto (por status) trava; senão, manual
+  const isAuto = statusEhRecomprado(row);          // recomprado pelo status da base
+  const isManual = !!_loteRecomprado[uKey];        // marcado no botão
+  const isRec = isAuto || isManual;                // estado visual do interruptor
+  const subTexto = isAuto
+    ? 'Recompra concluída pelo status da base (automático)'
+    : 'Marca esta unidade como recompra concluída no PDF e Excel';
   const switchHtml = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin-bottom:12px;background:${isRec?'#eef7ee':'#f7f7f5'};border:1px solid ${isRec?'#bfe0bf':'var(--border)'};border-radius:10px;transition:all .2s">
     <div>
-      <div style="font-size:13px;font-weight:600;color:var(--text)">Unidade já recomprada</div>
-      <div style="font-size:11px;color:var(--text-muted)">Marca esta unidade como recompra concluída no PDF e Excel</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text)">Unidade já recomprada${isAuto?' <span style=\'font-size:10px;color:#1a7d1a;font-weight:700\'>· automático</span>':''}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${subTexto}</div>
     </div>
-    <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:pointer;flex-shrink:0">
-      <input type="checkbox" id="switchRecomprado" ${isRec?'checked':''} onchange="toggleRecomprado()" style="opacity:0;width:0;height:0">
-      <span id="switchTrack" style="position:absolute;inset:0;background:${isRec?'#1a7d1a':'#ccc'};border-radius:26px;transition:.2s"></span>
+    <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:${isAuto?'not-allowed':'pointer'};flex-shrink:0" title="${isAuto?'Definido pelo status da base — não editável':''}">
+      <input type="checkbox" id="switchRecomprado" ${isRec?'checked':''} ${isAuto?'disabled':''} onchange="toggleRecomprado()" style="opacity:0;width:0;height:0">
+      <span id="switchTrack" style="position:absolute;inset:0;background:${isRec?'#1a7d1a':'#ccc'};border-radius:26px;transition:.2s;opacity:${isAuto?'.7':'1'}"></span>
       <span id="switchKnob" style="position:absolute;left:${isRec?'23px':'3px'};top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
     </label>
   </div>`;
@@ -1427,9 +1447,9 @@ function salvarEdicaoLote(){
     if(el) ov[it.id] = parseBR(el.value);
   });
   _loteOverrides[_editUnidadeKey] = ov;
-  // salva marcação de recompra
+  // salva marcação de recompra MANUAL (ignora se for automático por status = disabled)
   const chk = g('switchRecomprado');
-  if(chk){
+  if(chk && !chk.disabled){
     if(chk.checked) _loteRecomprado[_editUnidadeKey] = true;
     else delete _loteRecomprado[_editUnidadeKey];
   }
@@ -1479,7 +1499,7 @@ function exportarLotePDF(){
     const calc = calcularItensRow(row);
     const totalGasto = calc.items.reduce((s,i)=> s + (i.sinal===-1 ? i.valor : 0), 0);
     return {
-      recomprado: !!_loteRecomprado[row['UNIDADE']],
+      recomprado: estaRecomprado(row),
       unidade: row['UNIDADE']||'',
       nome: row['NOME']||'',
       tipologia: [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / '),
@@ -1647,7 +1667,7 @@ function exportarLoteExcel(){
   const dataRows = sortedFiltered.map(row=>{
     const calc = calcularItensRow(row);
     const tipo = [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / ');
-    const isRec = !!_loteRecomprado[row['UNIDADE']];
+    const isRec = estaRecomprado(row);
     const unidTxt = isRec ? (row['UNIDADE']||'') + '  • recomprado' : (row['UNIDADE']||'');
     const txtStyle = isRec ? ' ss:StyleID="recTxt"' : '';
     const txtVals = [unidTxt, row['NOME']||'', tipo, row['AREA']||'', row['CHAVES']||''];
