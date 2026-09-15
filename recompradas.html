@@ -523,6 +523,21 @@ function formatarCampo(el){
 var _vendaVista = false;
 var _lastRow = null;
 
+var STATUS_RECOMPRADOS_G = [
+  'RECOMPRA CONCLUÍDA - ASSINADO',
+  'RECOMPRA CONCLUÍDA - EM REGISTRO',
+  'CONCLUÍDO - RECOMPRA CONCLUÍDA'
+].map(function(s){ return s.toUpperCase().replace(/\s+/g,' ').trim(); });
+function statusEhRecomprado(row){
+  if(!row) return false;
+  var fase = String(row['FASE']||'').toUpperCase().replace(/\s+/g,' ').trim();
+  return STATUS_RECOMPRADOS_G.indexOf(fase) > -1;
+}
+function estaRecomprado(row){
+  var uKey = row ? (row['UNIDADE']||'') : '';
+  return (typeof _loteRecomprado!=='undefined' && !!_loteRecomprado[uKey]) || statusEhRecomprado(row);
+}
+
 function toggleVendaVista(){
   _vendaVista = !_vendaVista;
   const sw = g('vvSwitch'), knob = g('vvKnob'), hint = g('vvHint'), btn = g('btnVendaVista');
@@ -1024,6 +1039,7 @@ function gerarPDF(){
     : new Date().toLocaleDateString('pt-BR');
   const vv = g('valorVenda').value||'0,00';
   const seloVV = _vendaVista ? ' <span style="display:inline-block;background:#1a7d1a;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;letter-spacing:.03em">VENDA À VISTA</span>' : '';
+  const seloRec = estaRecomprado(_lastRow) ? ' <span style="display:inline-block;background:#1a7d1a;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle">RECOMPRADO</span>' : '';
   const total = g('resultValue').textContent||'R$ 0,00';
   // valor numérico real do lucro (para decidir a cor corretamente)
   let totalNum = 0;
@@ -1093,7 +1109,7 @@ function gerarPDF(){
 </div>
 
 <div class="section-title">MEMÓRIA DE CÁLCULO</div>
-<div class="vv-row">Valor de Venda Atual: <strong>R$ ${vv}</strong>${seloVV}</div>
+<div class="vv-row">Valor de Venda Atual: <strong>R$ ${vv}</strong>${seloVV}${seloRec}</div>
 <table>
   <thead>
     <tr>
