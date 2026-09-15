@@ -442,6 +442,27 @@ function fmtPct(v){
   if(v===null||v===undefined||v==='' || !isFinite(v)) return '—';
   return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%';
 }
+function formatDataBR(v){
+  if(v===null||v===undefined||v==='') return '';
+  var s = String(v).trim();
+  if(!s) return '';
+  // ISO yyyy-MM-dd (com ou sem hora)
+  var mIso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(mIso){ return mIso[3] + '/' + mIso[2] + '/' + mIso[1]; }
+  // já em BR dd/MM/yyyy
+  var mBr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(mBr){
+    var d = ('0'+mBr[1]).slice(-2), mo = ('0'+mBr[2]).slice(-2), y = mBr[3].length===2 ? '20'+mBr[3] : mBr[3];
+    return d + '/' + mo + '/' + y;
+  }
+  // Date parseável (ex: "Thu Jun 26 2026...")
+  var dt = new Date(s);
+  if(!isNaN(dt.getTime())){
+    var dd = ('0'+dt.getDate()).slice(-2), mm2 = ('0'+(dt.getMonth()+1)).slice(-2);
+    return dd + '/' + mm2 + '/' + dt.getFullYear();
+  }
+  return s; // fallback: mostra como veio
+}
 function round2(n){ return Math.round((Number(n)+Number.EPSILON)*100)/100; }
 function parseBR(s){
   if(!s&&s!==0)return 0;
@@ -679,7 +700,7 @@ function processData(raw){
   // raw = array de arrays (primeira linha = cabeçalho)
   // Mapeamento por coluna: D=3 nome, R=17 unidade, S=18 empreendimento,
   // T=19 data chaves, AF=31 tipologia, AG=32 área, AH=33 cat uso
-  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13, emp:33, fase:2, base:0};
+  const COL = {nome:1, unidade:4, chaves:5, tipologia:6, area:7, catuso:8, valorVenda:9, receita:11, vendaAnterior:12, saldoViab:13, emp:33, fase:2, base:0, dataAssinatura:34};
   const body = Array.isArray(raw[0]) ? raw.slice(1) : raw;
 
   csvData = body.map(r=>{
@@ -688,6 +709,7 @@ function processData(raw){
       'NOME': String(r[COL.nome]||'').trim(),
       'UNIDADE': String(r[COL.unidade]||'').trim(),
       'EMPREENDIMENTO': String(r[COL.emp]||'').trim(),
+      'DATA_ASSINATURA': formatDataBR(r[COL.dataAssinatura]),
       'FASE': String(r[COL.fase]||'').trim(),
       'BASE': String(r[COL.base]||'').trim(),
       'CHAVES': formatChaves(r[COL.chaves]),
@@ -1504,6 +1526,7 @@ function exportarLotePDF(){
     const totalGasto = calc.items.reduce((s,i)=> s + (i.sinal===-1 ? i.valor : 0), 0);
     return {
       recomprado: estaRecomprado(row),
+      dataAssinatura: row['DATA_ASSINATURA']||'',
       unidade: row['UNIDADE']||'',
       nome: row['NOME']||'',
       tipologia: [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' / '),
@@ -1545,6 +1568,7 @@ function exportarLotePDF(){
     const recBg = r.recomprado ? 'background:#eef7ee !important;' : '';
     const recTag = r.recomprado ? '<span style="font-size:6.5px;color:#3b6d11;font-weight:600;font-style:italic;margin-left:4px">recomprado</span>' : '';
     return `<tr style="${recBg}">
+      <td style="padding:3px 8px;font-size:8px;text-align:center;white-space:nowrap;color:#333;${recBg}">${r.dataAssinatura||'—'}</td>
       <td style="padding:0;font-size:8px;font-weight:600;white-space:nowrap;color:#1a1a18;position:relative;${recBg}"><span style="display:flex;align-items:stretch"><span style="width:5px;background:${classColor};flex-shrink:0;box-shadow:-1px 0 2px rgba(0,0,0,.18)"></span><span style="padding:3px 8px">${r.unidade}${recTag}</span></span></td>
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;color:#555">${r.nome}</td>
       <td style="padding:3px 8px;font-size:8px;white-space:nowrap;color:#555">${r.tipologia}</td>
@@ -1566,7 +1590,7 @@ function exportarLotePDF(){
     return `<td style="padding:5px 5px;font-size:8px;text-align:right;font-weight:700;color:${v===0?'#bbb':color};border-top:2px solid #9E1B1B">${v===0?'—':fmt(v)}</td>`;
   }).join('');
   const tfootRow = `<tr style="background:#f7f1f1">
-    <td colspan="4" style="padding:6px 8px;font-size:9px;font-weight:700;color:#9E1B1B;border-top:2px solid #9E1B1B">TOTAL (${dataRows.length} unidades)</td>
+    <td colspan="5" style="padding:6px 8px;font-size:9px;font-weight:700;color:#9E1B1B;border-top:2px solid #9E1B1B">TOTAL (${dataRows.length} unidades)</td>
     ${totItemCells}
     <td style="padding:6px 8px;font-size:9px;text-align:right;font-weight:700;white-space:nowrap;color:#a32d2d;background:#f3e9e9 !important;border-top:2px solid #9E1B1B">R$ ${fmt(totalGastoGeral)}</td>
     <td style="padding:6px 8px;font-size:9px;text-align:right;font-weight:700;white-space:nowrap;color:${totalGeral>=0?'#1a7d1a':'#a32d2d'};background:#f3e9e9 !important;border-top:2px solid #9E1B1B;border-left:2px solid #fff">R$ ${fmt(totalGeral)}</td>
@@ -1630,6 +1654,7 @@ function exportarLotePDF(){
 </div>
 <table>
   <thead><tr>
+    <th style="padding:5px 8px;font-size:8px;text-align:center;background:#7a1414 !important">DATA<br>ASSINATURA</th>
     <th style="padding:5px 8px;font-size:8px;text-align:left">Unidade</th>
     <th style="padding:5px 8px;font-size:8px;text-align:left">Cliente</th>
     <th style="padding:5px 8px;font-size:8px;text-align:left">Tipologia / Cat. Uso</th>
@@ -1637,7 +1662,7 @@ function exportarLotePDF(){
     ${headCols}
     <th style="padding:5px 8px;font-size:8px;text-align:right;background:#7a1414 !important">Total\nGasto</th>
     <th style="padding:5px 8px;font-size:8px;text-align:right;background:#6B1010 !important;border-left:2px solid #fff">LUCRO</th>
-    <th style="padding:5px 8px;font-size:8px;text-align:right;background:#7a1414 !important">%\\nLucro</th>
+    <th style="padding:5px 8px;font-size:8px;text-align:right;background:#7a1414 !important">% Lucro</th>
   </tr></thead>
   <tbody>${bodyRows}</tbody>
   <tfoot>${tfootRow}</tfoot>
@@ -1664,7 +1689,7 @@ function exportarLoteExcel(){
   const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   // Cabeçalhos
-  const headers = ['Unidade','Cliente','Tipologia / Cat. Uso','Metragem','Chaves', ...ITEMS.map(it=>it.desc), 'TOTAL GASTO', 'LUCRO / RESULTADO'];
+  const headers = ['Data Assinatura','Unidade','Cliente','Tipologia / Cat. Uso','Metragem','Chaves', ...ITEMS.map(it=>it.desc), 'TOTAL GASTO', 'LUCRO / RESULTADO'];
   const headerCells = headers.map(hd=>
     `<Cell ss:StyleID="hdr"><Data ss:Type="String">${esc(hd)}</Data></Cell>`
   ).join('');
@@ -1677,7 +1702,7 @@ function exportarLoteExcel(){
     const isRec = estaRecomprado(row);
     const unidTxt = isRec ? (row['UNIDADE']||'') + '  • recomprado' : (row['UNIDADE']||'');
     const txtStyle = isRec ? ' ss:StyleID="recTxt"' : '';
-    const txtVals = [unidTxt, row['NOME']||'', tipo, row['AREA']||'', row['CHAVES']||''];
+    const txtVals = [row['DATA_ASSINATURA']||'', unidTxt, row['NOME']||'', tipo, row['AREA']||'', row['CHAVES']||''];
     const txtCells = txtVals.map(v=>
       `<Cell${txtStyle}><Data ss:Type="String">${esc(v)}</Data></Cell>`
     ).join('');
@@ -1701,7 +1726,7 @@ function exportarLoteExcel(){
     somaTotal += calc.total;
   });
   const totLabel = `<Cell ss:StyleID="totLabel"><Data ss:Type="String">TOTAL (${sortedFiltered.length} unidades)</Data></Cell>` +
-                   `<Cell ss:StyleID="totLabel"><Data ss:Type="String"></Data></Cell>`.repeat(4);
+                   `<Cell ss:StyleID="totLabel"><Data ss:Type="String"></Data></Cell>`.repeat(5);
   const totNums = somaItens.map(v=>`<Cell ss:StyleID="totNum"><Data ss:Type="Number">${v.toFixed(2)}</Data></Cell>`).join('');
   let somaGasto = 0;
   sortedFiltered.forEach(row=>{ calcularItensRow(row).items.forEach(i=>{ if(i.sinal===-1) somaGasto += i.valor; }); });
