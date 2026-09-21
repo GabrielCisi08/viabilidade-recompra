@@ -196,8 +196,8 @@ input[type=file]{display:none}
         <div id="matchHint"></div>
         <div class="form-grid">
           <div class="field">
-            <label>Nome do novo cliente</label>
-            <input type="text" id="nomeCliente" placeholder="Digite o nome do novo cliente">
+            <label>Nome do cliente</label>
+            <input type="text" id="nomeCliente" placeholder="—" readonly title="Campo travado — apenas leitura" style="background:#f6f4f4;color:#555;cursor:not-allowed">
           </div>
           <div class="field">
             <label>Chave produto (referência)</label>
@@ -229,7 +229,7 @@ input[type=file]{display:none}
         <div class="form-grid">
           <div class="field">
             <label>Valor de venda atual (R$)</label>
-            <input type="text" id="valorVenda" placeholder="0,00" oninput="onValorVendaChange()" onblur="formatarCampo(this);onValorVendaChange()" onkeydown="enterBlur(event)">
+            <input type="text" id="valorVenda" placeholder="0,00" readonly title="Campo travado — apenas leitura" style="background:#f6f4f4;color:#555;cursor:not-allowed">
             <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
               <button type="button" id="btnVendaVista" onclick="toggleVendaVista()" style="display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid #d9c9c9;background:#fff;color:#6B1010;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;transition:all .15s">
                 <span id="vvSwitch" style="display:inline-block;width:30px;height:16px;background:#ccc;border-radius:10px;position:relative;transition:background .15s;flex-shrink:0">
@@ -853,7 +853,7 @@ function buscarPorUnidade(){
 
 function preencherDados(row){
   _lastRow = row; // guarda para restaurar itens ao desligar 'venda à vista'
-  g('nomeCliente').value = ''; // em branco para digitar o novo cliente (revenda)
+  g('nomeCliente').value = 'cliente base'; // em branco para digitar o novo cliente (revenda)
   g('unidade').value = row['UNIDADE']||'';
   g('empreendimento').value = row['EMPREENDIMENTO']||'';
   g('tipologia').value = [row['TIPOLOGIA'],row['CATUSO']].filter(Boolean).join(' — ');
