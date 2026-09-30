@@ -166,6 +166,10 @@ input[type=file]{display:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Critérios
       </button>
+      <button class="nav-item" onclick="showPage('capas',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM4 9h16M9 4v16"/></svg>
+        Capas
+      </button>
       
     </nav>
     <div class="sidebar-footer">
@@ -406,7 +410,27 @@ input[type=file]{display:none}
     </div>
 
 
-    
+    <!-- CAPAS POR LISTA -->
+    <div id="page-capas" class="page">
+      <div class="page-header">
+        <h2>Capas por Lista</h2>
+        <p>Cole uma lista de unidades. O motor calcula os 16 itens da base; onde o item 5 (saldo devedor) ou 7 (ITBI) estiver zerado, usa o valor da lista como fallback.</p>
+      </div>
+      <div class="card" style="padding:16px">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">Título da capa</label>
+        <input type="text" id="capaTitulo" placeholder="Ex.: Menor Saldo Devedor" style="width:100%;margin-bottom:14px">
+
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">Lista (cole do Excel — colunas NOME · UNIDADE · SALDO DEVEDOR · ITBI)</label>
+        <textarea id="capaListaInput" rows="10" placeholder="MIRIAM NUNES LORENTE&#9;ARICANDUVA U-0109&#9;110.368,49&#9;3.311,05&#10;FRANCISCO RENATO COELHO&#9;ARICANDUVA U-0110&#9;104.378,68&#9;3.131,36" style="width:100%;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:8px;resize:vertical"></textarea>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Dica: selecione as colunas no Excel e cole aqui (vem separado por TAB automaticamente). Também aceita ponto-e-vírgula.</div>
+
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button onclick="gerarCapaLista()" style="padding:9px 18px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Gerar capa (PDF)</button>
+          <button onclick="g('capaListaInput').value='';g('capaTitulo').value=''" style="padding:9px 18px;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer">Limpar</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -918,6 +942,16 @@ function calcularItensRow(row){
         vals[it.id] = round2(typeof o === 'number' ? o : parseBR(String(o)));
       }
     });
+  }
+  // 4ª passada (CAPA): fallback do PDF — só quando o item da base está zerado/vazio
+  if(typeof _capaAtiva !== 'undefined' && _capaAtiva && typeof _capaFallback !== 'undefined'){
+    const fb = _capaFallback[_normU(uKey)];
+    if(fb){
+      // Saldo Devedor do PDF → item 5 (Liquidação saldo devedor CEF)
+      if((!vals[5] || vals[5]===0) && fb.saldo) vals[5] = round2(fb.saldo);
+      // ITBI do PDF → item 7 (ITBI Recompra)
+      if((!vals[7] || vals[7]===0) && fb.itbi) vals[7] = round2(fb.itbi);
+    }
   }
   let total = 0;
   const items = ITEMS.map(it=>{
@@ -1517,8 +1551,87 @@ function getLoteFiltrado(){
   return filtered;
 }
 
-function exportarLotePDF(){
-  const filtered = getLoteFiltrado();
+// ═══════════ CAPAS POR LISTA (com fallback do PDF) ═══════════
+// Guarda os valores de fallback por unidade: { unidade: {saldo, itbi} }
+var _capaFallback = {};
+
+// Normaliza chave de unidade para casar lista × base (uppercase, espaços colapsados)
+function _normU(s){ return String(s||'').toUpperCase().replace(/\s+/g,' ').trim(); }
+
+// Faz o parse da lista colada. Formato esperado por linha (tab ou ; ou múltiplos espaços):
+//   NOME <sep> UNIDADE <sep> SALDO DEVEDOR <sep> ITBI [<sep> TOTAL]
+// Retorna [{nome, unidade, saldo, itbi}]
+function parseListaCapa(texto){
+  const linhas = String(texto||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const out = [];
+  linhas.forEach(l=>{
+    // tenta separar por TAB, senão por ; senão por 2+ espaços
+    let partes;
+    if(l.indexOf('\t')>-1) partes = l.split('\t');
+    else if(l.indexOf(';')>-1) partes = l.split(';');
+    else partes = l.split(/\s{2,}/);
+    partes = partes.map(p=>p.trim()).filter(p=>p!=='');
+    if(partes.length < 3) return; // precisa ao menos unidade + 2 números
+    // Os 2 (ou 3) últimos campos são números (saldo, itbi[, total]); o resto antes é nome+unidade
+    // Identifica quantos campos finais são numéricos
+    function ehNum(x){ return /^[\d.,]+$/.test(String(x).replace(/\s/g,'')); }
+    let nums = [];
+    let i = partes.length-1;
+    while(i>=0 && ehNum(partes[i]) && nums.length<3){ nums.unshift(partes[i]); i--; }
+    if(nums.length < 2) return;
+    const saldo = parseBR(nums[0]);
+    const itbi  = parseBR(nums[1]);
+    // o campo textual imediatamente antes dos números é a UNIDADE; o resto é nome
+    const unidade = partes[i] || '';
+    const nome = partes.slice(0, i).join(' ');
+    out.push({ nome: nome, unidade: unidade, saldo: saldo, itbi: itbi });
+  });
+  return out;
+}
+
+// Gera a capa: casa cada item da lista com a base; aplica fallback onde item 5/7 está zerado
+function gerarCapaLista(){
+  const texto = g('capaListaInput') ? g('capaListaInput').value : '';
+  const titulo = (g('capaTitulo') && g('capaTitulo').value.trim()) ? g('capaTitulo').value.trim() : 'Capa — Lista';
+  const itens = parseListaCapa(texto);
+  if(!itens.length){ alert('Não consegui ler a lista. Cole com colunas separadas por TAB (copiado do Excel) ou por ponto-e-vírgula: NOME  UNIDADE  SALDO  ITBI'); return; }
+
+  // Índice da base por unidade normalizada
+  const baseIdx = {};
+  csvData.forEach(r=>{ baseIdx[_normU(r['UNIDADE'])] = r; });
+
+  const linhas = [];
+  const naoEncontradas = [];
+  _capaFallback = {}; // reseta
+
+  itens.forEach(it=>{
+    const uNorm = _normU(it.unidade);
+    let row = baseIdx[uNorm];
+    if(!row){
+      // não existe na base: cria uma linha mínima só com a unidade e o fallback
+      naoEncontradas.push(it.unidade);
+      row = { 'UNIDADE': it.unidade, 'NOME': it.nome, 'EMPREENDIMENTO':'', 'FASE':'', 'BASE':'',
+              'CHAVES':'', 'TIPOLOGIA':'', 'CATUSO':'', 'AREA':'', 'VALOR_VENDA':0,
+              'RECEITA':0, 'VENDA_ANTERIOR':0, 'SALDO_VIAB':0, 'DATA_ASSINATURA':'',
+              '_raw': new Array(35).fill(''), '_semBase': true };
+    }
+    _capaFallback[_normU(row['UNIDADE'])] = { saldo: it.saldo, itbi: it.itbi };
+    linhas.push(row);
+  });
+
+  // Gera o PDF usando o motor, com fallback ativo
+  _capaAtiva = true;
+  try { exportarLotePDF(linhas, titulo); }
+  finally { _capaAtiva = false; }
+
+  if(naoEncontradas.length){
+    console.log('Unidades não encontradas na base (usaram só fallback):', naoEncontradas.join(', '));
+  }
+}
+var _capaAtiva = false;
+
+function exportarLotePDF(linhasCustom, tituloCapa){
+  const filtered = (linhasCustom && linhasCustom.length) ? linhasCustom : getLoteFiltrado();
   if(!filtered.length){ alert('Nenhuma unidade no filtro atual. Processe o lote primeiro.'); return; }
 
   // Cabeçalhos curtos para as 16 colunas
@@ -1624,7 +1737,7 @@ function exportarLotePDF(){
 </style></head><body>
 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
   <div>
-    <h1>Análise de Viabilidade de Recompra — Lote Detalhado</h1>
+    <h1>${tituloCapa ? tituloCapa : 'Análise de Viabilidade de Recompra — Lote Detalhado'}</h1>
     <div class="sub">Metrocasa Construtora · ${filtered.length} unidades · ${new Date().toLocaleDateString('pt-BR')}</div>
 <div style="display:flex;gap:0;margin:10px 0 16px;border:1px solid #e6dada;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(158,27,27,.06)">
   <div style="flex:1;padding:9px 12px;text-align:center;border-right:1px solid #f0eaea;border-top:2px solid #9E1B1B">
